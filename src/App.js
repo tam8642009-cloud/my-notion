@@ -1,28 +1,15 @@
-import { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
+import { db } from "./firebase";
+import { doc, setDoc, onSnapshot } from "firebase/firestore";
 
 const EMOJI_LIST = ["📄","📝","📊","🗂️","💡","🔖","🎯","📌"];
 function genId() { return Math.random().toString(36).slice(2,9); }
-function now() { return new Date().toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"}); }
-
+function nowTime() { return new Date().toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"}); }
 const INIT_DATA = () => ({
   pages: [{ id: "p1", emoji: "📝", title: "はじめてのページ", blocks: [{ id: "b1", type: "text", content: "ここに自由にテキストを入力できます。" }] }],
   rooms: [{ id: "r1", name: "一般", messages: [{ id: "m1", user: "Alice", text: "こんにちは！", time: "10:00" }] }],
 });
 
-// ---- Storage (localStorage) ----
-const storageKey = c => `notion:${c}`;
-const loadFromStorage = (code) => {
-  try {
-    const raw = localStorage.getItem(storageKey(code));
-    if (raw) return JSON.parse(raw);
-  } catch(e) {}
-  return null;
-};
-const saveToStorage = (code, data) => {
-  try { localStorage.setItem(storageKey(code), JSON.stringify(data)); } catch(e) {}
-};
-
-// ---- Table Block ----
 function TableBlock({ block, onChange }) {
   const [rows, setRows] = useState(block.rows || [["",""],["",""]]);
   const [headers, setHeaders] = useState(block.headers || ["列1","列2"]);
@@ -116,8 +103,7 @@ function PageEditor({ page, onUpdate }) {
         </div>
       ))}
       <div style={{marginTop:16,position:"relative"}}>
-        <button onClick={()=>setAddMenu(v=>!v)} style={{border:"none",background:"none",cursor:"pointer",color:"#9b9a97",fontSize:14,padding:"4px 8px",borderRadius:4,display:"flex",alignItems:"center",gap:4}}
-          onMouseOver={e=>e.currentTarget.style.background="#f0f0ef"} onMouseOut={e=>e.currentTarget.style.background="none"}>
+        <button onClick={()=>setAddMenu(v=>!v)} style={{border:"none",background:"none",cursor:"pointer",color:"#9b9a97",fontSize:14,padding:"4px 8px",borderRadius:4,display:"flex",alignItems:"center",gap:4}}>
           <span style={{fontSize:18,fontWeight:300}}>+</span> ブロックを追加
         </button>
         {addMenu&&<div style={{position:"absolute",top:32,left:0,background:"#fff",border:"1px solid #e0e0e0",borderRadius:8,boxShadow:"0 4px 16px rgba(0,0,0,0.1)",zIndex:100,overflow:"hidden",minWidth:180}}>
@@ -141,7 +127,7 @@ function Chat({ rooms, setRooms, onSave }) {
   useEffect(()=>endRef.current?.scrollIntoView({behavior:"smooth"}),[room?.messages?.length]);
   const send=()=>{
     if(!input.trim()) return;
-    const msg={id:genId(),user:username,text:input.trim(),time:now()};
+    const msg={id:genId(),user:username,text:input.trim(),time:nowTime()};
     const updated=rooms.map(r=>r.id===activeRoom?{...r,messages:[...r.messages,msg]}:r);
     setRooms(updated); onSave(updated); setInput("");
   };
@@ -209,7 +195,7 @@ function JoinScreen({ onJoin }) {
         <input value={code} onChange={e=>setCode(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handle()} placeholder="例: x7k2-mq9p-wj4r-9z3q"
           style={{width:"100%",boxSizing:"border-box",border:"1px solid #e0e0e0",borderRadius:6,padding:"10px 14px",fontSize:14,outline:"none",color:"#37352f",marginBottom:4}}/>
         {err&&<p style={{color:"#e03e3e",fontSize:12,margin:"0 0 8px",textAlign:"left"}}>{err}</p>}
-        <p style={{fontSize:11,color:"#9b9a97",margin:"0 0 16px",textAlign:"left"}}>推測されにくい長いコード（16文字以上）を使うと安全です。同じコードを入力した人同士でデータを共有できます。</p>
+        <p style={{fontSize:11,color:"#9b9a97",margin:"0 0 16px",textAlign:"left"}}>推測されにくい長いコード（16文字以上）を使うと安全です。</p>
         <button onClick={handle} style={{width:"100%",background:"#37352f",color:"#fff",border:"none",borderRadius:6,padding:"11px 0",fontSize:15,fontWeight:600,cursor:"pointer"}}>参加する</button>
       </div>
     </div>
@@ -225,34 +211,36 @@ export default function App() {
   const [activePage,setActivePage]=useState(null);
   const [view,setView]=useState("page");
   const [sidebarOpen,setSidebarOpen]=useState(true);
-  const [lastSync,setLastSync]=useState(null);
+  const [loading,setLoading]=useState(false);
 
-  const loadData = (code) => {
-    const d = loadFromStorage(code) || INIT_DATA();
-    if (!loadFromStorage(code)) saveToStorage(code, d);
-    setPages(d.pages); setRooms(d.rooms);
-    setActivePage(d.pages[0]?.id || null);
-    setLastSync(new Date());
-  };
+  // Firestoreリアルタイム同期
+  useEffect(()=>{
+    if(!joined) return;
+    const ref = doc(db, "workspaces", roomCode);
+    const unsub = onSnapshot(ref, snap => {
+      if(snap.exists()) {
+        const d = snap.data();
+        setPages(d.pages||[]);
+        setRooms(d.rooms||[]);
+        if(!activePage && d.pages?.length) setActivePage(d.pages[0].id);
+      } else {
+        const d = INIT_DATA();
+        setDoc(ref, d);
+        setPages(d.pages); setRooms(d.rooms);
+        setActivePage(d.pages[0].id);
+      }
+    });
+    return ()=>unsub();
+  },[joined, roomCode]);
 
   const saveData = (newPages, newRooms) => {
-    saveToStorage(roomCode, {pages:newPages, rooms:newRooms});
-    setLastSync(new Date());
+    const ref = doc(db, "workspaces", roomCode);
+    setDoc(ref, {pages:newPages, rooms:newRooms});
   };
 
   const handleJoin = (code, name) => {
-    setRoomCode(code); setUsername(name);
-    loadData(code); setJoined(true);
+    setRoomCode(code); setUsername(name); setJoined(true);
   };
-
-  const handleRefresh = () => { loadData(roomCode); };
-
-  // Auto-poll every 10s
-  useEffect(()=>{
-    if(!joined) return;
-    const id = setInterval(()=>loadData(roomCode), 10000);
-    return ()=>clearInterval(id);
-  },[joined, roomCode]);
 
   const updatePage = p => { const np=pages.map(pg=>pg.id===p.id?p:pg); setPages(np); saveData(np,rooms); };
   const addPage = () => { const p={id:genId(),emoji:"📄",title:"新しいページ",blocks:[{id:genId(),type:"text",content:""}]}; const np=[...pages,p]; setPages(np); setActivePage(p.id); setView("page"); saveData(np,rooms); };
@@ -260,9 +248,9 @@ export default function App() {
   const handleRoomsSave = (newRooms) => { setRooms(newRooms); saveData(pages,newRooms); };
 
   const curPage = pages.find(p=>p.id===activePage);
-  const syncStr = lastSync ? lastSync.toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit",second:"2-digit"}) : "--";
 
   if(!joined) return <JoinScreen onJoin={handleJoin}/>;
+  if(loading) return <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",fontFamily:"sans-serif",color:"#9b9a97"}}>読み込み中...</div>;
 
   return (
     <div style={{display:"flex",height:"100vh",fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif",background:"#fff",color:"#37352f"}}>
@@ -278,8 +266,7 @@ export default function App() {
             </div>
           </div>
           <div style={{padding:"8px 8px 0"}}>
-            <div onClick={()=>setView("chat")} style={{padding:"6px 12px",borderRadius:4,cursor:"pointer",fontSize:14,color:view==="chat"?"#37352f":"#6b6b6b",background:view==="chat"?"#e9e9e8":"transparent"}}
-              onMouseOver={e=>e.currentTarget.style.background="#e9e9e8"} onMouseOut={e=>e.currentTarget.style.background=view==="chat"?"#e9e9e8":"transparent"}>
+            <div onClick={()=>setView("chat")} style={{padding:"6px 12px",borderRadius:4,cursor:"pointer",fontSize:14,color:view==="chat"?"#37352f":"#6b6b6b",background:view==="chat"?"#e9e9e8":"transparent"}}>
               💬 チャット
             </div>
           </div>
@@ -288,7 +275,6 @@ export default function App() {
             {pages.map(p=>(
               <div key={p.id}
                 style={{padding:"5px 12px",borderRadius:4,cursor:"pointer",fontSize:14,color:activePage===p.id&&view==="page"?"#37352f":"#6b6b6b",background:activePage===p.id&&view==="page"?"#e9e9e8":"transparent",display:"flex",alignItems:"center",justifyContent:"space-between"}}
-                onMouseOver={e=>e.currentTarget.style.background="#e9e9e8"} onMouseOut={e=>e.currentTarget.style.background=activePage===p.id&&view==="page"?"#e9e9e8":"transparent"}
                 onClick={()=>{setActivePage(p.id);setView("page");}}>
                 <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.emoji} {p.title||"タイトルなし"}</span>
                 <span onClick={e=>{e.stopPropagation();deletePage(p.id);}} style={{color:"#c4c4c0",fontSize:11,flexShrink:0,marginLeft:4,padding:"0 2px",cursor:"pointer"}}>✕</span>
@@ -297,8 +283,7 @@ export default function App() {
           </div>
           <div style={{flex:1}}/>
           <div style={{padding:"12px 8px",borderTop:"1px solid #e0e0e0"}}>
-            <button onClick={addPage} style={{width:"100%",padding:"8px 0",background:"#fff",border:"1px solid #e0e0e0",borderRadius:6,cursor:"pointer",fontSize:14,color:"#37352f",fontWeight:500,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}
-              onMouseOver={e=>e.currentTarget.style.background="#f0f0ef"} onMouseOut={e=>e.currentTarget.style.background="#fff"}>
+            <button onClick={addPage} style={{width:"100%",padding:"8px 0",background:"#fff",border:"1px solid #e0e0e0",borderRadius:6,cursor:"pointer",fontSize:14,color:"#37352f",fontWeight:500,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
               ＋ 新しいページ
             </button>
           </div>
@@ -310,13 +295,7 @@ export default function App() {
           <span style={{fontSize:13,color:"#9b9a97",flex:1}}>
             {view==="chat"?"💬 チャット":curPage?`${curPage.emoji} ${curPage.title||"タイトルなし"}`:""}
           </span>
-          <div style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#9b9a97"}}>
-            <span>👤 {username}</span>
-            <span>🕐 {syncStr}</span>
-            <button onClick={handleRefresh} style={{border:"1px solid #e0e0e0",background:"#fff",borderRadius:6,padding:"4px 10px",cursor:"pointer",fontSize:12,color:"#37352f",display:"flex",alignItems:"center",gap:4}}>
-              🔄 更新
-            </button>
-          </div>
+          <span style={{fontSize:12,color:"#9b9a97"}}>👤 {username}</span>
         </div>
         <div style={{flex:1,overflow:"auto"}}>
           {view==="page"&&curPage&&<PageEditor page={curPage} onUpdate={updatePage}/>}
