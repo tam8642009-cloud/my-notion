@@ -11,12 +11,12 @@ const INIT_DATA = () => ({
 });
 
 function TableBlock({ block, onChange }) {
-  const [rows, setRows] = useState(block.rows || [["",""],["",""]]);
-  const [headers, setHeaders] = useState(block.headers || ["列1","列2"]);
-  const update = (r,c,v) => { const nr=rows.map((row,ri)=>ri===r?row.map((cell,ci)=>ci===c?v:cell):row); setRows(nr); onChange({...block,rows:nr,headers}); };
-  const updateH = (c,v) => { const nh=headers.map((h,i)=>i===c?v:h); setHeaders(nh); onChange({...block,rows,headers:nh}); };
-  const addRow = () => { const nr=[...rows,headers.map(()=>"")]; setRows(nr); onChange({...block,rows:nr,headers}); };
-  const addCol = () => { const nh=[...headers,`列${headers.length+1}`]; const nr=rows.map(r=>[...r,""]); setHeaders(nh); setRows(nr); onChange({...block,rows:nr,headers:nh}); };
+  const rows = block.rows || [["",""],["",""]];
+  const headers = block.headers || ["列1","列2"];
+  const update = (r,c,v) => { const nr=rows.map((row,ri)=>ri===r?row.map((cell,ci)=>ci===c?v:cell):row); onChange({...block,rows:nr,headers}); };
+  const updateH = (c,v) => { const nh=headers.map((h,i)=>i===c?v:h); onChange({...block,rows,headers:nh}); };
+  const addRow = () => { const nr=[...rows,headers.map(()=>"")]; onChange({...block,rows:nr,headers}); };
+  const addCol = () => { const nh=[...headers,`列${headers.length+1}`]; const nr=rows.map(r=>[...r,""]); onChange({...block,rows:nr,headers:nh}); };
   return (
     <div style={{overflowX:"auto",margin:"8px 0"}}>
       <table style={{borderCollapse:"collapse",width:"100%",fontSize:14}}>
