@@ -6,27 +6,14 @@ const EMOJI_LIST = ["📄","📝","📊","🗂️","💡","🔖","🎯","📌"];
 function genId() { return Math.random().toString(36).slice(2,9); }
 function nowTime() { return new Date().toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"}); }
 
-// Firestoreは二重配列非対応のため変換
-const rowsToFirestore = rows => (rows||[]).map(row => ({cells: (Array.isArray(row) ? row : []).join("|||")}));
-const rowsFromFirestore = rows => rows.map(r => {
-  if (Array.isArray(r)) return r;
-  if (r.cells) return r.cells.split("|||");
-  return Object.values(r);
-});
-
 const INIT_DATA = () => ({
   pages: [{ id: "p1", emoji: "📝", title: "はじめてのページ", blocks: [{ id: "b1", type: "text", content: "ここに自由にテキストを入力できます。" }] }],
-  rooms: [{ id: "r1", name: "一般", messages: [{ id: "m1", user: "Alice", text: "こんにちは！", time: "10:00" }] }],
+  rooms: [{ id: "r1", name: "一般", messages: [] }],
 });
 
-const serializePages = pages => pages.map(p => ({
-  ...p,
-  blocks: p.blocks.map(b => b.type === "table" ? {...b, rows: rowsToFirestore(b.rows)} : b)
-}));
-const deserializePages = pages => pages.map(p => ({
-  ...p,
-  blocks: p.blocks.map(b => b.type === "table" ? {...b, rows: rowsFromFirestore(b.rows)} : b)
-}));
+// ページ全体をJSON文字列として保存・復元
+const serialize = data => ({ json: JSON.stringify(data) });
+const deserialize = doc => { try { return JSON.parse(doc.json); } catch(e) { return INIT_DATA(); } };
 
 function TableBlock({ block, onChange }) {
   const rows = block.rows || [["",""],["",""]];
@@ -235,14 +222,13 @@ export default function App() {
     const ref = doc(db, "workspaces", roomCode);
     const unsub = onSnapshot(ref, snap => {
       if(snap.exists()) {
-        const d = snap.data();
-        const dp = deserializePages(d.pages||[]);
-        setPages(dp);
+        const d = deserialize(snap.data());
+        setPages(d.pages||[]);
         setRooms(d.rooms||[]);
-        setActivePage(ap => ap || dp[0]?.id || null);
+        setActivePage(ap => ap || d.pages?.[0]?.id || null);
       } else {
         const d = INIT_DATA();
-        setDoc(ref, {pages: serializePages(d.pages), rooms: d.rooms});
+        setDoc(ref, serialize(d));
         setPages(d.pages); setRooms(d.rooms);
         setActivePage(d.pages[0].id);
       }
@@ -252,7 +238,7 @@ export default function App() {
 
   const saveData = (newPages, newRooms) => {
     const ref = doc(db, "workspaces", roomCode);
-    setDoc(ref, {pages: serializePages(newPages), rooms: newRooms});
+    setDoc(ref, serialize({pages: newPages, rooms: newRooms}));
   };
 
   const handleJoin = (code, name) => { setRoomCode(code); setUsername(name); setJoined(true); };
