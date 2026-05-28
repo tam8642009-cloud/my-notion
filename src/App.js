@@ -5,18 +5,32 @@ import { doc, setDoc, onSnapshot } from "firebase/firestore";
 const EMOJI_LIST = ["📄","📝","📊","🗂️","💡","🔖","🎯","📌"];
 function genId() { return Math.random().toString(36).slice(2,9); }
 function nowTime() { return new Date().toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"}); }
+
+// Firestoreは二重配列非対応のため変換
+const rowsToFirestore = rows => rows.map(row => ({cells: row.join("|||")}));
+const rowsFromFirestore = rows => rows.map(r => r.cells ? r.cells.split("|||") : r);
+
 const INIT_DATA = () => ({
   pages: [{ id: "p1", emoji: "📝", title: "はじめてのページ", blocks: [{ id: "b1", type: "text", content: "ここに自由にテキストを入力できます。" }] }],
   rooms: [{ id: "r1", name: "一般", messages: [{ id: "m1", user: "Alice", text: "こんにちは！", time: "10:00" }] }],
 });
+
+const serializePages = pages => pages.map(p => ({
+  ...p,
+  blocks: p.blocks.map(b => b.type === "table" ? {...b, rows: rowsToFirestore(b.rows)} : b)
+}));
+const deserializePages = pages => pages.map(p => ({
+  ...p,
+  blocks: p.blocks.map(b => b.type === "table" ? {...b, rows: rowsFromFirestore(b.rows)} : b)
+}));
 
 function TableBlock({ block, onChange }) {
   const rows = block.rows || [["",""],["",""]];
   const headers = block.headers || ["列1","列2"];
   const update = (r,c,v) => { const nr=rows.map((row,ri)=>ri===r?row.map((cell,ci)=>ci===c?v:cell):row); onChange({...block,rows:nr,headers}); };
   const updateH = (c,v) => { const nh=headers.map((h,i)=>i===c?v:h); onChange({...block,rows,headers:nh}); };
-  const addRow = () => { const nr=[...rows,headers.map(()=>"")]; onChange({...block,rows:nr,headers}); };
-  const addCol = () => { const nh=[...headers,`列${headers.length+1}`]; const nr=rows.map(r=>[...r,""]); onChange({...block,rows:nr,headers:nh}); };
+  const addRow = () => onChange({...block,rows:[...rows,headers.map(()=>"")],headers});
+  const addCol = () => { const nh=[...headers,`列${headers.length+1}`]; onChange({...block,rows:rows.map(r=>[...r,""]),headers:nh}); };
   return (
     <div style={{overflowX:"auto",margin:"8px 0"}}>
       <table style={{borderCollapse:"collapse",width:"100%",fontSize:14}}>
@@ -211,21 +225,20 @@ export default function App() {
   const [activePage,setActivePage]=useState(null);
   const [view,setView]=useState("page");
   const [sidebarOpen,setSidebarOpen]=useState(true);
-  const [loading,setLoading]=useState(false);
 
-  // Firestoreリアルタイム同期
   useEffect(()=>{
     if(!joined) return;
     const ref = doc(db, "workspaces", roomCode);
     const unsub = onSnapshot(ref, snap => {
       if(snap.exists()) {
         const d = snap.data();
-        setPages(d.pages||[]);
+        const dp = deserializePages(d.pages||[]);
+        setPages(dp);
         setRooms(d.rooms||[]);
-        if(!activePage && d.pages?.length) setActivePage(d.pages[0].id);
+        setActivePage(ap => ap || dp[0]?.id || null);
       } else {
         const d = INIT_DATA();
-        setDoc(ref, d);
+        setDoc(ref, {pages: serializePages(d.pages), rooms: d.rooms});
         setPages(d.pages); setRooms(d.rooms);
         setActivePage(d.pages[0].id);
       }
@@ -235,13 +248,10 @@ export default function App() {
 
   const saveData = (newPages, newRooms) => {
     const ref = doc(db, "workspaces", roomCode);
-    setDoc(ref, {pages:newPages, rooms:newRooms});
+    setDoc(ref, {pages: serializePages(newPages), rooms: newRooms});
   };
 
-  const handleJoin = (code, name) => {
-    setRoomCode(code); setUsername(name); setJoined(true);
-  };
-
+  const handleJoin = (code, name) => { setRoomCode(code); setUsername(name); setJoined(true); };
   const updatePage = p => { const np=pages.map(pg=>pg.id===p.id?p:pg); setPages(np); saveData(np,rooms); };
   const addPage = () => { const p={id:genId(),emoji:"📄",title:"新しいページ",blocks:[{id:genId(),type:"text",content:""}]}; const np=[...pages,p]; setPages(np); setActivePage(p.id); setView("page"); saveData(np,rooms); };
   const deletePage = id => { const np=pages.filter(p=>p.id!==id); setPages(np); if(activePage===id) setActivePage(np[0]?.id||null); saveData(np,rooms); };
@@ -250,7 +260,6 @@ export default function App() {
   const curPage = pages.find(p=>p.id===activePage);
 
   if(!joined) return <JoinScreen onJoin={handleJoin}/>;
-  if(loading) return <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",fontFamily:"sans-serif",color:"#9b9a97"}}>読み込み中...</div>;
 
   return (
     <div style={{display:"flex",height:"100vh",fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif",background:"#fff",color:"#37352f"}}>
