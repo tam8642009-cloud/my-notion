@@ -7,7 +7,7 @@ function genId() { return Math.random().toString(36).slice(2,9); }
 function nowTime() { return new Date().toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"}); }
 
 // Firestoreは二重配列非対応のため変換
-const rowsToFirestore = rows => rows.map(row => ({cells: Array.isArray(row) ? row.join("|||") : row.cells || ""}));
+const rowsToFirestore = rows => (rows||[]).map(row => ({cells: (Array.isArray(row) ? row : []).join("|||")}));
 const rowsFromFirestore = rows => rows.map(r => {
   if (Array.isArray(r)) return r;
   if (r.cells) return r.cells.split("|||");
