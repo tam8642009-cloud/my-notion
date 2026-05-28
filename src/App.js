@@ -8,7 +8,11 @@ function nowTime() { return new Date().toLocaleTimeString("ja-JP",{hour:"2-digit
 
 // Firestoreは二重配列非対応のため変換
 const rowsToFirestore = rows => rows.map(row => ({cells: row.join("|||")}));
-const rowsFromFirestore = rows => rows.map(r => r.cells ? r.cells.split("|||") : r);
+const rowsFromFirestore = rows => rows.map(r => {
+  if (Array.isArray(r)) return r;
+  if (r.cells) return r.cells.split("|||");
+  return Object.values(r);
+});
 
 const INIT_DATA = () => ({
   pages: [{ id: "p1", emoji: "📝", title: "はじめてのページ", blocks: [{ id: "b1", type: "text", content: "ここに自由にテキストを入力できます。" }] }],
