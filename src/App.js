@@ -101,12 +101,13 @@ function PageEditor({ page, onUpdate }) {
       <input value={title} onChange={e=>{setTitle(e.target.value);save(e.target.value,emoji,blocks);}} placeholder="タイトルなし"
         style={{display:"block",width:"100%",border:"none",outline:"none",fontSize:36,fontWeight:700,color:"#37352f",fontFamily:"inherit",background:"transparent",marginBottom:16,padding:0}}/>
       {blocks.map(b=>(
-        <div key={b.id}>
-          {b.type==="text"&&<TextBlock block={b} onChange={nb=>updateBlock(b.id,nb)} onKeyDown={e=>handleKey(e,b.id)}/>}
-          {b.type==="table"&&<TableBlock block={b} onChange={nb=>updateBlock(b.id,nb)}/>}
-          {b.type==="image"&&<ImageBlock block={b} onChange={nb=>updateBlock(b.id,nb)}/>}
-        </div>
-      ))}
+  <div key={b.id} style={{position:"relative",paddingRight:24}} onMouseOver={e=>e.currentTarget.querySelector(".del-btn").style.opacity=1} onMouseOut={e=>e.currentTarget.querySelector(".del-btn").style.opacity=0}>
+    {b.type==="text"&&<TextBlock block={b} onChange={nb=>updateBlock(b.id,nb)} onKeyDown={e=>handleKey(e,b.id)}/>}
+    {b.type==="table"&&<TableBlock block={b} onChange={nb=>updateBlock(b.id,nb)}/>}
+    {b.type==="image"&&<ImageBlock block={b} onChange={nb=>updateBlock(b.id,nb)}/>}
+    <span className="del-btn" onClick={()=>deleteBlock(b.id)} style={{position:"absolute",top:4,right:0,opacity:0,cursor:"pointer",fontSize:13,color:"#9b9a97",padding:"2px 4px",borderRadius:4,transition:"opacity 0.1s"}}>✕</span>
+  </div>
+))}
       <div style={{marginTop:16,position:"relative"}}>
         <button onClick={()=>setAddMenu(v=>!v)} style={{border:"none",background:"none",cursor:"pointer",color:"#9b9a97",fontSize:14,padding:"4px 8px",borderRadius:4,display:"flex",alignItems:"center",gap:4}}>
           <span style={{fontSize:18,fontWeight:300}}>+</span> ブロックを追加
