@@ -68,12 +68,18 @@ function ImageBlock({ block, onChange }) {
 }
 
 function TextBlock({ block, onChange, onKeyDown }) {
+  const ref = useRef();
+  useEffect(()=>{
+    if(ref.current){
+      ref.current.style.height="auto";
+      ref.current.style.height=ref.current.scrollHeight+"px";
+    }
+  },[block.content]);
   return (
     <div style={{display:"flex",alignItems:"flex-start",gap:4,margin:"2px 0"}}>
       <span style={{color:"#c4c4c0",fontSize:12,marginTop:6,userSelect:"none"}}>⠿</span>
-      <textarea value={block.content} onChange={e=>onChange({...block,content:e.target.value})} onKeyDown={onKeyDown} rows={4}
-        style={{flex:1,border:"none",outline:"none",resize:"none",fontSize:16,color:"#37352f",lineHeight:1.6,fontFamily:"inherit",background:"transparent",padding:"2px 0",overflow:"hidden",minHeight:"96px"}}
-        onInput={e=>{e.target.style.height="auto";e.target.style.height=e.target.scrollHeight+"px"}}/>
+      <textarea ref={ref} value={block.content} onChange={e=>onChange({...block,content:e.target.value})} onKeyDown={onKeyDown} rows={4}
+        style={{flex:1,border:"none",outline:"none",resize:"none",fontSize:16,color:"#37352f",lineHeight:1.6,fontFamily:"inherit",background:"transparent",padding:"2px 0",overflow:"hidden",minHeight:"96px"}}/>
     </div>
   );
 }
