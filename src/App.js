@@ -183,10 +183,12 @@ function JoinScreen({ onJoin }) {
   const genCode=()=>{const s="abcdefghijklmnopqrstuvwxyz0123456789";const seg=()=>Array.from({length:4},()=>s[Math.floor(Math.random()*s.length)]).join("");return `${seg()}-${seg()}-${seg()}-${seg()}`;};
   const [code,setCode]=useState(genCode);
   const [name,setName]=useState("");
+  const [password,setPassword]=useState("");
   const [err,setErr]=useState("");
   const handle=()=>{
-    if(code.trim().length<3){setErr("コードは3文字以上入力してください");return;}
     if(name.trim().length<1){setErr("名前を入力してください");return;}
+    if(password !== "ribc2026school"){setErr("パスワードが違います");return;}
+    if(code.trim().length<3){setErr("コードは3文字以上入力してください");return;}
     onJoin(code.trim().toLowerCase(), name.trim());
   };
   return (
@@ -197,10 +199,12 @@ function JoinScreen({ onJoin }) {
         <p style={{margin:"0 0 28px",color:"#9b9a97",fontSize:14}}>参加コードを入力してワークスペースに参加</p>
         <input value={name} onChange={e=>setName(e.target.value)} placeholder="あなたの名前"
           style={{width:"100%",boxSizing:"border-box",border:"1px solid #e0e0e0",borderRadius:6,padding:"10px 14px",fontSize:14,outline:"none",color:"#37352f",marginBottom:10}}/>
+        <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="パスワード"
+          style={{width:"100%",boxSizing:"border-box",border:"1px solid #e0e0e0",borderRadius:6,padding:"10px 14px",fontSize:14,outline:"none",color:"#37352f",marginBottom:10}}/>
         <input value={code} onChange={e=>setCode(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handle()} placeholder="例: x7k2-mq9p-wj4r-9z3q"
           style={{width:"100%",boxSizing:"border-box",border:"1px solid #e0e0e0",borderRadius:6,padding:"10px 14px",fontSize:14,outline:"none",color:"#37352f",marginBottom:4}}/>
         {err&&<p style={{color:"#e03e3e",fontSize:12,margin:"0 0 8px",textAlign:"left"}}>{err}</p>}
-        <p style={{fontSize:11,color:"#9b9a97",margin:"0 0 16px",textAlign:"left"}}>推測されにくい長いコード（16文字以上）を使うと安全です。</p>
+        <p style={{fontSize:11,color:"#9b9a97",margin:"0 0 16px",textAlign:"left"}}>パスワードと参加コードは管理者から受け取ってください。</p>
         <button onClick={handle} style={{width:"100%",background:"#37352f",color:"#fff",border:"none",borderRadius:6,padding:"11px 0",fontSize:15,fontWeight:600,cursor:"pointer"}}>参加する</button>
       </div>
     </div>
