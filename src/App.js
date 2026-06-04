@@ -247,9 +247,13 @@ export default function App() {
     return ()=>unsub();
   },[joined, roomCode]);
 
+  const saveTimeout = useRef(null);
   const saveData = (newPages, newRooms) => {
-    const ref = doc(db, "workspaces", roomCode);
-    setDoc(ref, serialize({pages: newPages, rooms: newRooms}));
+    if(saveTimeout.current) clearTimeout(saveTimeout.current);
+    saveTimeout.current = setTimeout(()=>{
+      const ref = doc(db, "workspaces", roomCode);
+      setDoc(ref, serialize({pages: newPages, rooms: newRooms}));
+    }, 1000);
   };
 
   const handleJoin = (code, name) => { setRoomCode(code); setUsername(name); setJoined(true); };
