@@ -132,7 +132,7 @@ function PageEditor({ page, onUpdate }) {
         <button onClick={()=>setAddMenu(v=>!v)} style={{border:"none",background:"none",cursor:"pointer",color:"#9b9a97",fontSize:14,padding:"4px 8px",borderRadius:4,display:"flex",alignItems:"center",gap:4}}>
           <span style={{fontSize:18,fontWeight:300}}>+</span> ブロックを追加
         </button>
-        {addMenu&&<div style={{position:"absolute",top:32,left:0,background:"#fff",border:"1px solid #e0e0e0",borderRadius:8,boxShadow:"0 4px 16px rgba(0,0,0,0.1)",zIndex:100,overflow:"hidden",minWidth:180}}>
+        {addMenu&&<div style={{position:"fixed",bottom:80,left:"50%",transform:"translateX(-50%)",background:"#fff",border:"1px solid #e0e0e0",borderRadius:8,boxShadow:"0 4px 16px rgba(0,0,0,0.1)",zIndex:100,overflow:"hidden",minWidth:200}}>
           {[["text","📝 テキスト"],["table","📊 テーブル"],["image","🖼️ 画像"]].map(([t,label])=>(
             <div key={t} onClick={()=>addBlock(t)} style={{padding:"10px 16px",cursor:"pointer",fontSize:14,color:"#37352f"}}
               onMouseOver={e=>e.currentTarget.style.background="#f7f6f3"} onMouseOut={e=>e.currentTarget.style.background="transparent"}>{label}</div>
