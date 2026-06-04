@@ -51,24 +51,34 @@ function TableBlock({ block, onChange }) {
 function ImageBlock({ block, onChange }) {
   const ref = useRef();
   const handleFile = e => {
-  const f=e.target.files[0];
-  if(!f) return;
-  const img = new Image();
-  const url = URL.createObjectURL(f);
-  img.onload = () => {
-    const canvas = document.createElement("canvas");
-    const max = 400;
-    let w = img.width, h = img.height;
-    if(w > max){ h = h*(max/w); w = max; }
-    if(h > max){ w = w*(max/h); h = max; }
-    canvas.width = w; canvas.height = h;
-    canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-    canvas.toDataURL("image/jpeg", 0.4);
-    onChange({...block, src});
-    URL.revokeObjectURL(url);
+    const f = e.target.files[0];
+    if(!f) return;
+    const img = new Image();
+    const url = URL.createObjectURL(f);
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      const max = 400;
+      let w = img.width, h = img.height;
+      if(w > max){ h = h*(max/w); w = max; }
+      if(h > max){ w = w*(max/h); h = max; }
+      canvas.width = w; canvas.height = h;
+      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+      const src = canvas.toDataURL("image/jpeg", 0.4); // ✅ 結果を変数に保存
+      onChange({...block, src});                        // ✅ src を正しく渡す
+      URL.revokeObjectURL(url);
+    };
+    img.src = url;
   };
-  img.src = url;
-};
+  return (
+    <div style={{margin:"8px 0"}}>
+      {block.src
+        ? <img src={block.src} alt="" style={{maxWidth:"100%",borderRadius:6,display:"block"}}/>
+        : <div onClick={()=>ref.current.click()}
+            style={{border:"2px dashed #e0e0e0",borderRadius:6,padding:"32px",textAlign:"center",cursor:"pointer",color:"#9b9a97",fontSize:14}}>
+            🖼️ クリックして画像を選択
+          </div>
+      }
+      <input ref={ref} type="file" accept="image/*" style={{display:"none"}} onChange={handleFile}/>
     </div>
   );
 }
