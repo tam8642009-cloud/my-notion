@@ -50,11 +50,9 @@ function TableBlock({ block, onChange }) {
 
 function ImageBlock({ block, onChange }) {
   const ref = useRef();
-  const handleFile = e => {
-    const f = e.target.files[0];
-    if(!f) return;
+
+  const compressAndSave = (dataUrl) => {
     const img = new Image();
-    const url = URL.createObjectURL(f);
     img.onload = () => {
       const canvas = document.createElement("canvas");
       const max = 400;
@@ -63,12 +61,24 @@ function ImageBlock({ block, onChange }) {
       if(h > max){ w = w*(max/h); h = max; }
       canvas.width = w; canvas.height = h;
       canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-      const src = canvas.toDataURL("image/jpeg", 0.4); // ✅ 結果を変数に保存
-      onChange({...block, src});                        // ✅ src を正しく渡す
-      URL.revokeObjectURL(url);
+      const src = canvas.toDataURL("image/jpeg", 0.4);
+      onChange({...block, src});
     };
-    img.src = url;
+    img.src = dataUrl;
   };
+
+  const handleFile = e => {
+    const f = e.target.files[0];
+    if(!f) return;
+
+    // FileReaderで読み込む（iOS HEIC含む全形式に対応）
+    const reader = new FileReader();
+    reader.onload = ev => {
+      compressAndSave(ev.target.result);
+    };
+    reader.readAsDataURL(f);
+  };
+
   return (
     <div style={{margin:"8px 0"}}>
       {block.src
