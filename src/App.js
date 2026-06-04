@@ -60,7 +60,7 @@ function ImageBlock({ block, onChange }) {
           </div>
         : <div onClick={()=>ref.current.click()} style={{border:"2px dashed #e0e0e0",borderRadius:6,padding:"24px",textAlign:"center",cursor:"pointer",color:"#9b9a97",fontSize:14,background:"#fafafa"}}>
             📷 クリックして画像をアップロード
-            <input ref={ref} type="file" accept="image/*" onChange={handleFile} style={{display:"none"}}/>
+            <input ref={ref} type="file" accept="image/*" capture="environment" onChange={handleFile} style={{display:"none"}}/>
           </div>
       }
     </div>
