@@ -50,19 +50,25 @@ function TableBlock({ block, onChange }) {
 
 function ImageBlock({ block, onChange }) {
   const ref = useRef();
-  const handleFile = e => { const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=ev=>onChange({...block,src:ev.target.result}); r.readAsDataURL(f); };
-  return (
-    <div style={{margin:"8px 0"}}>
-      {block.src
-        ? <div style={{position:"relative",display:"inline-block"}}>
-            <img src={block.src} alt="" style={{maxWidth:"100%",maxHeight:400,borderRadius:4,display:"block"}}/>
-            <button onClick={()=>onChange({...block,src:null})} style={{position:"absolute",top:4,right:4,background:"rgba(0,0,0,0.5)",color:"#fff",border:"none",borderRadius:4,cursor:"pointer",fontSize:12,padding:"2px 6px"}}>削除</button>
-          </div>
-        : <div onClick={()=>ref.current.click()} style={{border:"2px dashed #e0e0e0",borderRadius:6,padding:"24px",textAlign:"center",cursor:"pointer",color:"#9b9a97",fontSize:14,background:"#fafafa"}}>
-            📷 クリックして画像をアップロード
-            <input ref={ref} type="file" accept="image/*" onChange={handleFile} style={{display:"none"}}/>
-          </div>
-      }
+  const handleFile = e => {
+  const f=e.target.files[0];
+  if(!f) return;
+  const img = new Image();
+  const url = URL.createObjectURL(f);
+  img.onload = () => {
+    const canvas = document.createElement("canvas");
+    const max = 800;
+    let w = img.width, h = img.height;
+    if(w > max){ h = h*(max/w); w = max; }
+    if(h > max){ w = w*(max/h); h = max; }
+    canvas.width = w; canvas.height = h;
+    canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+    const src = canvas.toDataURL("image/jpeg", 0.7);
+    onChange({...block, src});
+    URL.revokeObjectURL(url);
+  };
+  img.src = url;
+};
     </div>
   );
 }
