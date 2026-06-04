@@ -134,9 +134,13 @@ function PageEditor({ page, onUpdate }) {
         </button>
         {addMenu&&<div style={{position:"fixed",bottom:80,left:"50%",transform:"translateX(-50%)",background:"#fff",border:"1px solid #e0e0e0",borderRadius:8,boxShadow:"0 4px 16px rgba(0,0,0,0.1)",zIndex:100,overflow:"hidden",minWidth:200}}>
           {[["text","📝 テキスト"],["table","📊 テーブル"],["image","🖼️ 画像"]].map(([t,label])=>(
-            <div key={t} onClick={()=>addBlock(t)} style={{padding:"10px 16px",cursor:"pointer",fontSize:14,color:"#37352f"}}
-              onMouseOver={e=>e.currentTarget.style.background="#f7f6f3"} onMouseOut={e=>e.currentTarget.style.background="transparent"}>{label}</div>
-          ))}
+  <div key={t}
+    onClick={()=>addBlock(t)}
+    onTouchEnd={e=>{e.preventDefault();addBlock(t);}}
+    style={{padding:"16px 24px",cursor:"pointer",fontSize:16,color:"#37352f",borderBottom:"1px solid #f0f0ef"}}>
+    {label}
+  </div>
+))}
         </div>}
       </div>
     </div>
