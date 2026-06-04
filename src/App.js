@@ -50,33 +50,47 @@ function TableBlock({ block, onChange }) {
 
 function ImageBlock({ block, onChange }) {
   const ref = useRef();
+  const [log, setLog] = React.useState([]);
+  const addLog = msg => setLog(prev => [...prev, `${new Date().toISOString().slice(11,19)} ${msg}`]);
 
   const compressAndSave = (dataUrl) => {
+    addLog(`compressAndSave開始 len=${dataUrl.length} head=${dataUrl.slice(0,30)}`);
     const img = new Image();
     img.onload = () => {
+      addLog(`img.onload w=${img.width} h=${img.height}`);
       const canvas = document.createElement("canvas");
       const max = 400;
       let w = img.width, h = img.height;
       if(w > max){ h = h*(max/w); w = max; }
       if(h > max){ w = w*(max/h); h = max; }
       canvas.width = w; canvas.height = h;
-      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-      const src = canvas.toDataURL("image/jpeg", 0.4);
-      onChange({...block, src});
+      try {
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        const src = canvas.toDataURL("image/jpeg", 0.4);
+        addLog(`toDataURL完了 len=${src.length}`);
+        onChange({...block, src});
+        addLog("onChange完了");
+      } catch(err) {
+        addLog(`Canvas ERROR: ${err.message}`);
+      }
     };
+    img.onerror = () => addLog("img.onerror発火");
     img.src = dataUrl;
+    addLog("img.src設定完了");
   };
 
   const handleFile = e => {
     const f = e.target.files[0];
+    addLog(`ファイル選択: ${f ? f.name+" "+f.type+" "+f.size+"bytes" : "null"}`);
     if(!f) return;
-
-    // FileReaderで読み込む（iOS HEIC含む全形式に対応）
     const reader = new FileReader();
     reader.onload = ev => {
+      addLog(`FileReader完了 len=${ev.target.result.length}`);
       compressAndSave(ev.target.result);
     };
+    reader.onerror = () => addLog(`FileReader ERROR: ${reader.error}`);
     reader.readAsDataURL(f);
+    addLog("FileReader開始");
   };
 
   return (
@@ -89,6 +103,11 @@ function ImageBlock({ block, onChange }) {
           </div>
       }
       <input ref={ref} type="file" accept="image/*" style={{display:"none"}} onChange={handleFile}/>
+      {log.length > 0 && (
+        <div style={{marginTop:8,padding:8,background:"#1e1e1e",borderRadius:6,fontFamily:"monospace",fontSize:11,color:"#00ff00",maxHeight:200,overflowY:"auto"}}>
+          {log.map((l,i) => <div key={i}>{l}</div>)}
+        </div>
+      )}
     </div>
   );
 }
