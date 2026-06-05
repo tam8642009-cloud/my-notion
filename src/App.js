@@ -374,7 +374,7 @@ export default function App() {
 
     // ページサブコレクション
     const unsubPages = onSnapshot(collection(db,"workspaces",roomCode,"pages"), snap=>{
-      const loaded = snap.docs.map(d=>({id:d.id,...d.data()}));
+      const loaded = snap.docs.map(d=>deserializePage({id:d.id,...d.data()}));
       setPages(loaded);
       setActivePage(ap => ap || loaded[0]?.id || null);
     });
@@ -400,10 +400,28 @@ export default function App() {
   },[roomCode]);
 
   // ページ1件をFirestoreに保存（デバウンス）
+  // Firestoreは二次元配列不可 → rows を {cells:[...]} に変換
+  const serializePage = (page) => ({
+    ...page,
+    blocks: page.blocks.map(b =>
+      b.type === "table"
+        ? {...b, rows: b.rows.map(r => ({cells: r}))}
+        : b
+    )
+  });
+  const deserializePage = (data) => ({
+    ...data,
+    blocks: (data.blocks||[]).map(b =>
+      b.type === "table"
+        ? {...b, rows: (b.rows||[]).map(r => Array.isArray(r) ? r : (r.cells||[]))}
+        : b
+    )
+  });
+
   const savePage = useCallback((page) => {
     if(saveTimers.current[page.id]) clearTimeout(saveTimers.current[page.id]);
     saveTimers.current[page.id] = setTimeout(async ()=>{
-      const {id,...data} = page;
+      const {id,...data} = serializePage(page);
       await setDoc(doc(db,"workspaces",roomCode,"pages",id), data);
     }, 800);
   },[roomCode]);
@@ -437,7 +455,7 @@ export default function App() {
     const src=pages.find(p=>p.id===id); if(!src) return;
     const newId=genId();
     const np2={...src,id:newId,title:src.title+" のコピー",blocks:src.blocks.map(b=>({...b,id:genId()}))};
-    const {id:_,...data}=np2;
+    const {id:_,...data} = serializePage(np2);
     await setDoc(doc(db,"workspaces",roomCode,"pages",newId),{...data});
     const newOrder=[...pageOrder,newId];
     setPageOrder(newOrder);
