@@ -30,14 +30,51 @@ function parseExcelPaste(text) {
 function TableBlock({ block, onChange }) {
   const rows = block.rows || [["",""],["",""]];
   const headers = block.headers || ["列1","列2"];
+  const [menu,setMenu]=useState(null); // {rowIndex, x, y}
+
   const update = (r,c,v) => { const nr=rows.map((row,ri)=>ri===r?row.map((cell,ci)=>ci===c?v:cell):row); onChange({...block,rows:nr,headers}); };
   const updateH = (c,v) => { const nh=headers.map((h,i)=>i===c?v:h); onChange({...block,rows,headers:nh}); };
   const addRow = () => onChange({...block,rows:[...rows,headers.map(()=>"")],headers});
   const addCol = () => { const nh=[...headers,`列${headers.length+1}`]; onChange({...block,rows:rows.map(r=>[...r,""]),headers:nh}); };
+  const deleteRow = r => { if(rows.length<=1) return; onChange({...block,rows:rows.filter((_,i)=>i!==r),headers}); setMenu(null); };
+  const insertRow = (r,offset) => { const nr=[...rows]; nr.splice(r+offset,0,headers.map(()=>"")); onChange({...block,rows:nr,headers}); setMenu(null); };
+
+  const longPressTimer = useRef(null);
+
+  const handleRowContext = (e,r) => {
+    e.preventDefault();
+    setMenu({rowIndex:r, x:e.clientX, y:e.clientY});
+  };
+  const handleTouchStart = (e,r) => {
+    const touch = e.touches[0];
+    longPressTimer.current = setTimeout(()=>{
+      setMenu({rowIndex:r, x:touch.clientX, y:touch.clientY});
+    }, 500);
+  };
+  const handleTouchEnd = () => {
+    clearTimeout(longPressTimer.current);
+  };
+
+  useEffect(()=>{
+    const close=()=>setMenu(null);
+    window.addEventListener("click",close);
+    window.addEventListener("touchstart",close);
+    return ()=>{ window.removeEventListener("click",close); window.removeEventListener("touchstart",close); };
+  },[]);
+
   return (
-    <div style={{overflowX:"auto",margin:"8px 0"}}>
+    <div style={{overflowX:"auto",margin:"8px 0",position:"relative"}}>
+      {menu&&(
+        <div style={{position:"fixed",top:menu.y,left:menu.x,background:"#fff",border:"1px solid #e0e0e0",borderRadius:8,boxShadow:"0 4px 16px rgba(0,0,0,0.12)",zIndex:300,overflow:"hidden",minWidth:160}}
+          onClick={e=>e.stopPropagation()}>
+          <div onClick={()=>insertRow(menu.rowIndex,0)} style={{padding:"10px 16px",cursor:"pointer",fontSize:13,color:"#37352f",borderBottom:"1px solid #f0f0ef"}}>↑ 上に行を追加</div>
+          <div onClick={()=>insertRow(menu.rowIndex,1)} style={{padding:"10px 16px",cursor:"pointer",fontSize:13,color:"#37352f",borderBottom:"1px solid #f0f0ef"}}>↓ 下に行を追加</div>
+          <div onClick={()=>deleteRow(menu.rowIndex)} style={{padding:"10px 16px",cursor:"pointer",fontSize:13,color:"#e03e3e"}}>🗑 この行を削除</div>
+        </div>
+      )}
       <table style={{borderCollapse:"collapse",width:"100%",fontSize:14}}>
         <thead><tr>
+          <th style={{border:"1px solid #e0e0e0",background:"#f7f6f3",width:20}}></th>
           {headers.map((h,c)=>(
             <th key={c} style={{border:"1px solid #e0e0e0",padding:0,background:"#f7f6f3",minWidth:100}}>
               <input value={h} onChange={e=>updateH(c,e.target.value)} style={{width:"100%",border:"none",background:"transparent",padding:"6px 8px",fontWeight:600,fontSize:13,outline:"none",color:"#37352f"}}/>
@@ -48,11 +85,19 @@ function TableBlock({ block, onChange }) {
           </th>
         </tr></thead>
         <tbody>{rows.map((row,r)=>(
-          <tr key={r}>{row.map((cell,c)=>(
-            <td key={c} style={{border:"1px solid #e0e0e0",padding:0}}>
-              <input value={cell} onChange={e=>update(r,c,e.target.value)} style={{width:"100%",border:"none",padding:"6px 8px",fontSize:13,outline:"none",color:"#37352f",background:"transparent"}}/>
-            </td>
-          ))}<td style={{border:"1px solid #e0e0e0"}}></td></tr>
+          <tr key={r}>
+            <td onContextMenu={e=>handleRowContext(e,r)}
+              onTouchStart={e=>handleTouchStart(e,r)}
+              onTouchEnd={handleTouchEnd}
+              onTouchMove={handleTouchEnd}
+              style={{border:"1px solid #e0e0e0",background:"#f7f6f3",cursor:"context-menu",textAlign:"center",fontSize:10,color:"#c4c4c0",userSelect:"none",padding:"0 4px"}}>⠿</td>
+            {row.map((cell,c)=>(
+              <td key={c} style={{border:"1px solid #e0e0e0",padding:0}}>
+                <input value={cell} onChange={e=>update(r,c,e.target.value)} style={{width:"100%",border:"none",padding:"6px 8px",fontSize:13,outline:"none",color:"#37352f",background:"transparent"}}/>
+              </td>
+            ))}
+            <td style={{border:"1px solid #e0e0e0"}}></td>
+          </tr>
         ))}</tbody>
       </table>
       <button onClick={addRow} style={{marginTop:4,border:"none",background:"none",cursor:"pointer",color:"#9b9a97",fontSize:13,padding:"4px 8px"}}>+ 行を追加</button>
