@@ -400,7 +400,10 @@ export default function App() {
   const updatePage = p => { const np=pages.map(pg=>pg.id===p.id?p:pg); setPages(np); saveData(np,rooms); };
   const addPage = () => { const p={id:genId(),emoji:"📄",title:"新しいページ",blocks:[{id:genId(),type:"text",content:""}]}; const np=[...pages,p]; setPages(np); setActivePage(p.id); setView("page"); saveData(np,rooms); };
   const deletePage = id => { const np=pages.filter(p=>p.id!==id); setPages(np); if(activePage===id) setActivePage(np[0]?.id||null); saveData(np,rooms); };
-  const handleRoomsSave = (newRooms) => { setRooms(newRooms); saveData(pages,newRooms); };
+  const duplicatePage = id => {
+    const src = pages.find(p=>p.id===id);
+    if(!src) return;
+    const handleRoomsSave = (newRooms) => { setRooms(newRooms); saveData(pages,newRooms); };
 
   const curPage = pages.find(p=>p.id===activePage);
 
@@ -461,7 +464,10 @@ export default function App() {
                 style={{padding:"5px 12px",borderRadius:4,cursor:"grab",fontSize:14,color:activePage===p.id&&view==="page"?"#37352f":"#6b6b6b",background:activePage===p.id&&view==="page"?"#e9e9e8":"transparent",display:"flex",alignItems:"center",justifyContent:"space-between"}}
                 onClick={()=>{setActivePage(p.id);setView("page");}}>
                 <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.emoji} {p.title||"タイトルなし"}</span>
-                <span onClick={e=>{e.stopPropagation();deletePage(p.id);}} style={{color:"#c4c4c0",fontSize:11,flexShrink:0,marginLeft:4,padding:"0 2px",cursor:"pointer"}}>✕</span>
+                <span style={{display:"flex",alignItems:"center",gap:2,flexShrink:0}}>
+                  <span onClick={e=>{e.stopPropagation();duplicatePage(p.id);}} title="複製" style={{color:"#c4c4c0",fontSize:11,padding:"0 2px",cursor:"pointer"}}>⧉</span>
+                  <span onClick={e=>{e.stopPropagation();deletePage(p.id);}} title="削除" style={{color:"#c4c4c0",fontSize:11,padding:"0 2px",cursor:"pointer"}}>✕</span>
+                </span>
               </div>
             ))}
           </div>
