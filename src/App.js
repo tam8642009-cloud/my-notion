@@ -11,7 +11,6 @@ const INIT_DATA = () => ({
   rooms: [{ id: "r1", name: "一般", messages: [] }],
 });
 
-// ページ全体をJSON文字列として保存・復元
 const serialize = data => ({ json: JSON.stringify(data) });
 const deserialize = doc => { try { return JSON.parse(doc.json); } catch(e) { return INIT_DATA(); } };
 
@@ -48,70 +47,6 @@ function TableBlock({ block, onChange }) {
   );
 }
 
-function ImageBlock({ block, onChange }) {
-  const ref = useRef();
-  const [log, setLog] = React.useState([]);
-  const addLog = msg => setLog(prev => [...prev, `${new Date().toISOString().slice(11,19)} ${msg}`]);
-
-  const compressAndSave = (dataUrl) => {
-    addLog(`compressAndSave開始 len=${dataUrl.length} head=${dataUrl.slice(0,30)}`);
-    const img = new Image();
-    img.onload = () => {
-      addLog(`img.onload w=${img.width} h=${img.height}`);
-      const canvas = document.createElement("canvas");
-      const max = 400;
-      let w = img.width, h = img.height;
-      if(w > max){ h = h*(max/w); w = max; }
-      if(h > max){ w = w*(max/h); h = max; }
-      canvas.width = w; canvas.height = h;
-      try {
-        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-        const src = canvas.toDataURL("image/jpeg", 0.4);
-        addLog(`toDataURL完了 len=${src.length}`);
-        onChange({...block, src});
-        addLog("onChange完了");
-      } catch(err) {
-        addLog(`Canvas ERROR: ${err.message}`);
-      }
-    };
-    img.onerror = () => addLog("img.onerror発火");
-    img.src = dataUrl;
-    addLog("img.src設定完了");
-  };
-
-  const handleFile = e => {
-    const f = e.target.files[0];
-    addLog(`ファイル選択: ${f ? f.name+" "+f.type+" "+f.size+"bytes" : "null"}`);
-    if(!f) return;
-    const reader = new FileReader();
-    reader.onload = ev => {
-      addLog(`FileReader完了 len=${ev.target.result.length}`);
-      compressAndSave(ev.target.result);
-    };
-    reader.onerror = () => addLog(`FileReader ERROR: ${reader.error}`);
-    reader.readAsDataURL(f);
-    addLog("FileReader開始");
-  };
-
-  return (
-    <div style={{margin:"8px 0"}}>
-      {block.src
-        ? <img src={block.src} alt="" style={{maxWidth:"100%",borderRadius:6,display:"block"}}/>
-        : <div onClick={()=>ref.current.click()}
-            style={{border:"2px dashed #e0e0e0",borderRadius:6,padding:"32px",textAlign:"center",cursor:"pointer",color:"#9b9a97",fontSize:14}}>
-            🖼️ クリックして画像を選択
-          </div>
-      }
-      <input ref={ref} type="file" accept="image/*" style={{display:"none"}} onChange={handleFile}/>
-      {log.length > 0 && (
-        <div style={{marginTop:8,padding:8,background:"#1e1e1e",borderRadius:6,fontFamily:"monospace",fontSize:11,color:"#00ff00",maxHeight:200,overflowY:"auto"}}>
-          {log.map((l,i) => <div key={i}>{l}</div>)}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function TextBlock({ block, onChange, onKeyDown }) {
   const ref = useRef();
   const [local, setLocal] = useState(block.content);
@@ -137,6 +72,7 @@ function TextBlock({ block, onChange, onKeyDown }) {
     </div>
   );
 }
+
 function PageEditor({ page, onUpdate }) {
   const [title,setTitle]=useState(page.title);
   const [emoji,setEmoji]=useState(page.emoji);
@@ -146,7 +82,12 @@ function PageEditor({ page, onUpdate }) {
   useEffect(()=>{setTitle(page.title);setEmoji(page.emoji);setBlocks(page.blocks);},[page.id]);
   const save=(t,e,b)=>onUpdate({...page,title:t,emoji:e,blocks:b});
   const updateBlock=(id,nb)=>{const b2=blocks.map(b=>b.id===id?nb:b);setBlocks(b2);save(title,emoji,b2);};
-  const addBlock=type=>{const nb=type==="table"?{id:genId(),type:"table",headers:["列1","列2"],rows:[["",""],["",""]]}:type==="image"?{id:genId(),type:"image",src:null}:{id:genId(),type:"text",content:""};const b2=[...blocks,nb];setBlocks(b2);save(title,emoji,b2);setAddMenu(false);};
+  const addBlock=type=>{
+    const nb=type==="table"
+      ?{id:genId(),type:"table",headers:["列1","列2"],rows:[["",""],["",""]]}
+      :{id:genId(),type:"text",content:""};
+    const b2=[...blocks,nb];setBlocks(b2);save(title,emoji,b2);setAddMenu(false);
+  };
   const deleteBlock=id=>{const b2=blocks.filter(b=>b.id!==id);setBlocks(b2);save(title,emoji,b2);};
   const handleKey=(e,id)=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();addBlock("text");}if(e.key==="Backspace"&&blocks.find(b=>b.id===id)?.content===""){e.preventDefault();deleteBlock(id);}};
   return (
@@ -160,26 +101,25 @@ function PageEditor({ page, onUpdate }) {
       <input value={title} onChange={e=>{setTitle(e.target.value);save(e.target.value,emoji,blocks);}} placeholder="タイトルなし"
         style={{display:"block",width:"100%",border:"none",outline:"none",fontSize:36,fontWeight:700,color:"#37352f",fontFamily:"inherit",background:"transparent",marginBottom:16,padding:0}}/>
       {blocks.map(b=>(
-  <div key={b.id} style={{position:"relative",paddingRight:24}} onMouseOver={e=>e.currentTarget.querySelector(".del-btn").style.opacity=1} onMouseOut={e=>e.currentTarget.querySelector(".del-btn").style.opacity=0}>
-    {b.type==="text"&&<TextBlock block={b} onChange={nb=>updateBlock(b.id,nb)} onKeyDown={e=>handleKey(e,b.id)}/>}
-    {b.type==="table"&&<TableBlock block={b} onChange={nb=>updateBlock(b.id,nb)}/>}
-    {b.type==="image"&&<ImageBlock block={b} onChange={nb=>updateBlock(b.id,nb)}/>}
-    <span className="del-btn" onClick={()=>deleteBlock(b.id)} style={{position:"absolute",top:4,right:0,opacity:0,cursor:"pointer",fontSize:13,color:"#9b9a97",padding:"2px 4px",borderRadius:4,transition:"opacity 0.1s"}}>✕</span>
-  </div>
-))}
+        <div key={b.id} style={{position:"relative",paddingRight:24}} onMouseOver={e=>e.currentTarget.querySelector(".del-btn").style.opacity=1} onMouseOut={e=>e.currentTarget.querySelector(".del-btn").style.opacity=0}>
+          {b.type==="text"&&<TextBlock block={b} onChange={nb=>updateBlock(b.id,nb)} onKeyDown={e=>handleKey(e,b.id)}/>}
+          {b.type==="table"&&<TableBlock block={b} onChange={nb=>updateBlock(b.id,nb)}/>}
+          <span className="del-btn" onClick={()=>deleteBlock(b.id)} style={{position:"absolute",top:4,right:0,opacity:0,cursor:"pointer",fontSize:13,color:"#9b9a97",padding:"2px 4px",borderRadius:4,transition:"opacity 0.1s"}}>✕</span>
+        </div>
+      ))}
       <div style={{marginTop:16,position:"relative"}}>
         <button onClick={()=>setAddMenu(v=>!v)} style={{border:"none",background:"none",cursor:"pointer",color:"#9b9a97",fontSize:14,padding:"4px 8px",borderRadius:4,display:"flex",alignItems:"center",gap:4}}>
           <span style={{fontSize:18,fontWeight:300}}>+</span> ブロックを追加
         </button>
         {addMenu&&<div style={{position:"fixed",bottom:80,left:"50%",transform:"translateX(-50%)",background:"#fff",border:"1px solid #e0e0e0",borderRadius:8,boxShadow:"0 4px 16px rgba(0,0,0,0.1)",zIndex:100,overflow:"hidden",minWidth:200}}>
-          {[["text","📝 テキスト"],["table","📊 テーブル"],["image","🖼️ 画像"]].map(([t,label])=>(
-  <div key={t}
-    onClick={()=>addBlock(t)}
-    onTouchEnd={e=>{e.preventDefault();addBlock(t);}}
-    style={{padding:"16px 24px",cursor:"pointer",fontSize:16,color:"#37352f",borderBottom:"1px solid #f0f0ef"}}>
-    {label}
-  </div>
-))}
+          {[["text","📝 テキスト"],["table","📊 テーブル"]].map(([t,label])=>(
+            <div key={t}
+              onClick={()=>addBlock(t)}
+              onTouchEnd={e=>{e.preventDefault();addBlock(t);}}
+              style={{padding:"16px 24px",cursor:"pointer",fontSize:16,color:"#37352f",borderBottom:"1px solid #f0f0ef"}}>
+              {label}
+            </div>
+          ))}
         </div>}
       </div>
     </div>
