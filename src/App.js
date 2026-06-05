@@ -7,8 +7,8 @@ function genId() { return Math.random().toString(36).slice(2,9); }
 function nowTime() { return new Date().toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"}); }
 
 const INIT_DATA = () => ({
-  pages: [{ id: "p1", emoji: "📝", title: "はじめてのページ", blocks: [{ id: "b1", type: "text", content: "ここに自由にテキストを入力できます。" }] }],
-  rooms: [{ id: "r1", name: "一般", messages: [] }],
+  pages: [{ id:"p1", emoji:"📝", title:"はじめてのページ", blocks:[{ id:"b1", type:"text", content:"ここに自由にテキストを入力できます。" }] }],
+  rooms: [{ id:"r1", name:"一般", messages:[] }],
 });
 
 const serialize = data => ({ json: JSON.stringify(data) });
@@ -20,7 +20,7 @@ function parseExcelPaste(text) {
   const headers = rows[0].map((h,i) => h.trim() || `列${i+1}`);
   const dataRows = rows.slice(1).map(r => { while(r.length < headers.length) r.push(""); return r.map(c=>c.trim()); });
   if (dataRows.length === 0) dataRows.push(headers.map(()=>""));
-  return { id: genId(), type: "table", headers, rows: dataRows };
+  return { id:genId(), type:"table", headers, rows:dataRows };
 }
 
 function TableBlock({ block, onChange }) {
@@ -39,7 +39,7 @@ function TableBlock({ block, onChange }) {
   const handleRowContext = (e,r) => { e.preventDefault(); setMenu({rowIndex:r,x:e.clientX,y:e.clientY}); };
   const handleTouchStart = (e,r) => {
     const touch = e.touches[0];
-    longPressTimer.current = setTimeout(()=>{ setMenu({rowIndex:r,x:touch.clientX,y:touch.clientY}); }, 500);
+    longPressTimer.current = setTimeout(()=>setMenu({rowIndex:r,x:touch.clientX,y:touch.clientY}), 500);
   };
   const handleTouchEnd = () => clearTimeout(longPressTimer.current);
 
@@ -53,8 +53,8 @@ function TableBlock({ block, onChange }) {
   return (
     <div style={{overflowX:"auto",margin:"8px 0",position:"relative"}}>
       {menu&&(
-        <div style={{position:"fixed",top:menu.y,left:menu.x,background:"#fff",border:"1px solid #e0e0e0",borderRadius:8,boxShadow:"0 4px 16px rgba(0,0,0,0.12)",zIndex:300,overflow:"hidden",minWidth:160}}
-          onClick={e=>e.stopPropagation()}>
+        <div onClick={e=>e.stopPropagation()}
+          style={{position:"fixed",top:menu.y,left:menu.x,background:"#fff",border:"1px solid #e0e0e0",borderRadius:8,boxShadow:"0 4px 16px rgba(0,0,0,0.12)",zIndex:300,overflow:"hidden",minWidth:160}}>
           <div onClick={()=>insertRow(menu.rowIndex,0)} style={{padding:"10px 16px",cursor:"pointer",fontSize:13,color:"#37352f",borderBottom:"1px solid #f0f0ef"}}>↑ 上に行を追加</div>
           <div onClick={()=>insertRow(menu.rowIndex,1)} style={{padding:"10px 16px",cursor:"pointer",fontSize:13,color:"#37352f",borderBottom:"1px solid #f0f0ef"}}>↓ 下に行を追加</div>
           <div onClick={()=>deleteRow(menu.rowIndex)} style={{padding:"10px 16px",cursor:"pointer",fontSize:13,color:"#e03e3e"}}>🗑 この行を削除</div>
@@ -65,7 +65,8 @@ function TableBlock({ block, onChange }) {
           <th style={{border:"1px solid #e0e0e0",background:"#f7f6f3",width:20}}></th>
           {headers.map((h,c)=>(
             <th key={c} style={{border:"1px solid #e0e0e0",padding:0,background:"#f7f6f3",minWidth:100}}>
-              <input value={h} onChange={e=>updateH(c,e.target.value)} style={{width:"100%",border:"none",background:"transparent",padding:"6px 8px",fontWeight:600,fontSize:13,outline:"none",color:"#37352f"}}/>
+              <input value={h} onChange={e=>updateH(c,e.target.value)}
+                style={{width:"100%",border:"none",background:"transparent",padding:"6px 8px",fontWeight:600,fontSize:13,outline:"none",color:"#37352f"}}/>
             </th>
           ))}
           <th style={{border:"1px solid #e0e0e0",background:"#f7f6f3",width:32}}>
@@ -74,14 +75,12 @@ function TableBlock({ block, onChange }) {
         </tr></thead>
         <tbody>{rows.map((row,r)=>(
           <tr key={r}>
-            <td onContextMenu={e=>handleRowContext(e,r)}
-              onTouchStart={e=>handleTouchStart(e,r)}
-              onTouchEnd={handleTouchEnd}
-              onTouchMove={handleTouchEnd}
+            <td onContextMenu={e=>handleRowContext(e,r)} onTouchStart={e=>handleTouchStart(e,r)} onTouchEnd={handleTouchEnd} onTouchMove={handleTouchEnd}
               style={{border:"1px solid #e0e0e0",background:"#f7f6f3",cursor:"context-menu",textAlign:"center",fontSize:10,color:"#c4c4c0",userSelect:"none",padding:"0 4px"}}>⠿</td>
             {row.map((cell,c)=>(
               <td key={c} style={{border:"1px solid #e0e0e0",padding:0}}>
-                <input value={cell} onChange={e=>update(r,c,e.target.value)} style={{width:"100%",border:"none",padding:"6px 8px",fontSize:13,outline:"none",color:"#37352f",background:"transparent"}}/>
+                <input value={cell} onChange={e=>update(r,c,e.target.value)}
+                  style={{width:"100%",border:"none",padding:"6px 8px",fontSize:13,outline:"none",color:"#37352f",background:"transparent"}}/>
               </td>
             ))}
             <td style={{border:"1px solid #e0e0e0"}}></td>
@@ -114,37 +113,57 @@ function TextBlock({ block, onChange, onKeyDown }) {
 }
 
 function PageEditor({ page, onUpdate }) {
-  const [title,setTitle]=useState(page.title);
-  const [emoji,setEmoji]=useState(page.emoji);
-  const [blocks,setBlocks]=useState(page.blocks);
-  const [showEmoji,setShowEmoji]=useState(false);
-  const [addMenu,setAddMenu]=useState(false);
-  const [pasteMsg,setPasteMsg]=useState("");
-  const dragItem=useRef(null);
-  const dragOver=useRef(null);
+  const [title,setTitle] = useState(page.title);
+  const [emoji,setEmoji] = useState(page.emoji);
+  const [blocks,setBlocks] = useState(page.blocks);
+  const [showEmoji,setShowEmoji] = useState(false);
+  const [addMenu,setAddMenu] = useState(false);
+  const [pasteMsg,setPasteMsg] = useState("");
+  const dragItem = useRef(null);
+  const dragOver = useRef(null);
 
-  useEffect(()=>{setTitle(page.title);setEmoji(page.emoji);setBlocks(page.blocks);},[page.id]);
+  useEffect(()=>{
+    setTitle(page.title); setEmoji(page.emoji); setBlocks(page.blocks);
+  },[page.id, page.title, page.emoji, page.blocks]);
 
-  const save=(t,e,b)=>onUpdate({...page,title:t,emoji:e,blocks:b});
-  const updateBlock=(id,nb)=>{const b2=blocks.map(b=>b.id===id?nb:b);setBlocks(b2);save(title,emoji,b2);};
-  const addBlock=type=>{
-    const nb=type==="table"?{id:genId(),type:"table",headers:["列1","列2"],rows:[["",""],["",""]]}:{id:genId(),type:"text",content:""};
-    const b2=[...blocks,nb];setBlocks(b2);save(title,emoji,b2);setAddMenu(false);
+  const save = (t,e,b) => onUpdate({...page,title:t,emoji:e,blocks:b});
+
+  const updateBlock = (id,nb) => {
+    setBlocks(prev => {
+      const b2 = prev.map(b=>b.id===id?nb:b);
+      save(title,emoji,b2);
+      return b2;
+    });
   };
-  const deleteBlock=id=>{const b2=blocks.filter(b=>b.id!==id);setBlocks(b2);save(title,emoji,b2);};
-  const handleKey=(e,id)=>{
-    if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();addBlock("text");}
-    if(e.key==="Backspace"&&blocks.find(b=>b.id===id)?.content===""){e.preventDefault();deleteBlock(id);}
+
+  const addBlock = type => {
+    const nb = type==="table"
+      ? {id:genId(),type:"table",headers:["列1","列2"],rows:[["",""],["",""]]}
+      : {id:genId(),type:"text",content:""};
+    setBlocks(prev=>{ const b2=[...prev,nb]; save(title,emoji,b2); return b2; });
+    setAddMenu(false);
   };
 
-  const onDragStart=(i)=>{ dragItem.current=i; };
-  const onDragEnter=(i)=>{ dragOver.current=i; };
-  const onDragEnd=()=>{
-    const b2=[...blocks];
-    const dragged=b2.splice(dragItem.current,1)[0];
-    b2.splice(dragOver.current,0,dragged);
-    dragItem.current=null; dragOver.current=null;
-    setBlocks(b2); save(title,emoji,b2);
+  const deleteBlock = id => {
+    setBlocks(prev=>{ const b2=prev.filter(b=>b.id!==id); save(title,emoji,b2); return b2; });
+  };
+
+  const handleKey = (e,id) => {
+    if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); addBlock("text"); }
+    if(e.key==="Backspace"&&blocks.find(b=>b.id===id)?.content===""){ e.preventDefault(); deleteBlock(id); }
+  };
+
+  const onDragStart = i => { dragItem.current=i; };
+  const onDragEnter = i => { dragOver.current=i; };
+  const onDragEnd = () => {
+    setBlocks(prev=>{
+      const b2=[...prev];
+      const dragged=b2.splice(dragItem.current,1)[0];
+      b2.splice(dragOver.current,0,dragged);
+      dragItem.current=null; dragOver.current=null;
+      save(title,emoji,b2);
+      return b2;
+    });
   };
 
   const handlePaste = useCallback((e) => {
@@ -153,11 +172,10 @@ function PageEditor({ page, onUpdate }) {
     const tbl = parseExcelPaste(text);
     if (!tbl) return;
     e.preventDefault();
-    const b2=[...blocks,tbl];
-    setBlocks(b2); save(title,emoji,b2);
+    setBlocks(prev=>{ const b2=[...prev,tbl]; save(title,emoji,b2); return b2; });
     setPasteMsg("✅ Excelの表を貼り付けました");
     setTimeout(()=>setPasteMsg(""),2500);
-  },[blocks,title,emoji]);
+  },[title,emoji]);
 
   useEffect(()=>{
     document.addEventListener("paste",handlePaste);
@@ -169,19 +187,17 @@ function PageEditor({ page, onUpdate }) {
       {pasteMsg&&<div style={{position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",background:"#37352f",color:"#fff",padding:"8px 20px",borderRadius:8,fontSize:13,zIndex:200,boxShadow:"0 4px 12px rgba(0,0,0,0.2)"}}>{pasteMsg}</div>}
       <div style={{position:"relative",display:"inline-block",marginBottom:8}}>
         <span style={{fontSize:40,cursor:"pointer",userSelect:"none"}} onClick={()=>setShowEmoji(v=>!v)}>{emoji}</span>
-        {showEmoji&&<div style={{position:"absolute",top:48,left:0,background:"#fff",border:"1px solid #e0e0e0",borderRadius:8,padding:8,display:"flex",flexWrap:"wrap",gap:4,zIndex:100,boxShadow:"0 4px 16px rgba(0,0,0,0.1)"}}>
-          {EMOJI_LIST.map(em=><span key={em} style={{fontSize:24,cursor:"pointer",padding:4,borderRadius:4}} onClick={()=>{setEmoji(em);save(title,em,blocks);setShowEmoji(false);}}>{em}</span>)}
-        </div>}
+        {showEmoji&&(
+          <div style={{position:"absolute",top:48,left:0,background:"#fff",border:"1px solid #e0e0e0",borderRadius:8,padding:8,display:"flex",flexWrap:"wrap",gap:4,zIndex:100,boxShadow:"0 4px 16px rgba(0,0,0,0.1)"}}>
+            {EMOJI_LIST.map(em=><span key={em} style={{fontSize:24,cursor:"pointer",padding:4,borderRadius:4}} onClick={()=>{setEmoji(em);save(title,em,blocks);setShowEmoji(false);}}>{em}</span>)}
+          </div>
+        )}
       </div>
       <input value={title} onChange={e=>{setTitle(e.target.value);save(e.target.value,emoji,blocks);}} placeholder="タイトルなし"
         style={{display:"block",width:"100%",border:"none",outline:"none",fontSize:36,fontWeight:700,color:"#37352f",fontFamily:"inherit",background:"transparent",marginBottom:16,padding:0}}/>
       {blocks.map((b,i)=>(
-        <div key={b.id}
-          draggable
-          onDragStart={()=>onDragStart(i)}
-          onDragEnter={()=>onDragEnter(i)}
-          onDragEnd={onDragEnd}
-          onDragOver={e=>e.preventDefault()}
+        <div key={b.id} draggable
+          onDragStart={()=>onDragStart(i)} onDragEnter={()=>onDragEnter(i)} onDragEnd={onDragEnd} onDragOver={e=>e.preventDefault()}
           style={{position:"relative",paddingRight:24,paddingLeft:24,marginBottom:2,borderRadius:6}}
           onMouseOver={e=>{e.currentTarget.querySelector(".del-btn").style.opacity=1;e.currentTarget.querySelector(".drag-handle").style.opacity=1;}}
           onMouseOut={e=>{e.currentTarget.querySelector(".del-btn").style.opacity=0;e.currentTarget.querySelector(".drag-handle").style.opacity=0;}}>
@@ -195,12 +211,14 @@ function PageEditor({ page, onUpdate }) {
         <button onClick={()=>setAddMenu(v=>!v)} style={{border:"none",background:"none",cursor:"pointer",color:"#9b9a97",fontSize:14,padding:"4px 8px",borderRadius:4,display:"flex",alignItems:"center",gap:4}}>
           <span style={{fontSize:18,fontWeight:300}}>+</span> ブロックを追加
         </button>
-        {addMenu&&<div style={{position:"fixed",bottom:80,left:"50%",transform:"translateX(-50%)",background:"#fff",border:"1px solid #e0e0e0",borderRadius:8,boxShadow:"0 4px 16px rgba(0,0,0,0.1)",zIndex:100,overflow:"hidden",minWidth:200}}>
-          {[["text","📝 テキスト"],["table","📊 テーブル"]].map(([t,label])=>(
-            <div key={t} onClick={()=>addBlock(t)} onTouchEnd={e=>{e.preventDefault();addBlock(t);}}
-              style={{padding:"16px 24px",cursor:"pointer",fontSize:16,color:"#37352f",borderBottom:"1px solid #f0f0ef"}}>{label}</div>
-          ))}
-        </div>}
+        {addMenu&&(
+          <div style={{position:"fixed",bottom:80,left:"50%",transform:"translateX(-50%)",background:"#fff",border:"1px solid #e0e0e0",borderRadius:8,boxShadow:"0 4px 16px rgba(0,0,0,0.1)",zIndex:100,overflow:"hidden",minWidth:200}}>
+            {[["text","📝 テキスト"],["table","📊 テーブル"]].map(([t,label])=>(
+              <div key={t} onClick={()=>addBlock(t)} onTouchEnd={e=>{e.preventDefault();addBlock(t);}}
+                style={{padding:"16px 24px",cursor:"pointer",fontSize:16,color:"#37352f",borderBottom:"1px solid #f0f0ef"}}>{label}</div>
+            ))}
+          </div>
+        )}
       </div>
       <div style={{marginTop:24,padding:"12px 16px",background:"#f7f6f3",borderRadius:8,fontSize:12,color:"#9b9a97"}}>
         💡 Excelの表をコピーして、このページ上でそのまま貼り付けるとテーブルになります
@@ -339,6 +357,7 @@ export default function App() {
   const [view,setView]=useState("page");
   const [sidebarOpen,setSidebarOpen]=useState(true);
   const saveTimeout=useRef(null);
+  const isSaving=useRef(false);
   const pageDragItem=useRef(null);
   const pageDragOver=useRef(null);
   const pageDragging=useRef(false);
@@ -349,6 +368,7 @@ export default function App() {
     if(!joined) return;
     const ref=doc(db,"workspaces",roomCode);
     const unsub=onSnapshot(ref,snap=>{
+      if(isSaving.current) return; // 保存中はスナップショットを無視
       if(snap.exists()){
         const d=deserialize(snap.data());
         setPages(d.pages||[]); setRooms(d.rooms||[]);
@@ -363,10 +383,12 @@ export default function App() {
   },[joined,roomCode]);
 
   const saveData=(newPages,newRooms)=>{
+    isSaving.current=true;
     if(saveTimeout.current) clearTimeout(saveTimeout.current);
-    saveTimeout.current=setTimeout(()=>{
-      setDoc(doc(db,"workspaces",roomCode),serialize({pages:newPages,rooms:newRooms}));
-    },1000);
+    saveTimeout.current=setTimeout(async ()=>{
+      await setDoc(doc(db,"workspaces",roomCode),serialize({pages:newPages,rooms:newRooms}));
+      setTimeout(()=>{ isSaving.current=false; },500);
+    },800);
   };
 
   const handleJoin=(code,name)=>{ setRoomCode(code); setUsername(name); setJoined(true); };
@@ -379,7 +401,6 @@ export default function App() {
     const np=[...pages,np2]; setPages(np); setActivePage(np2.id); setView("page"); saveData(np,rooms);
   };
   const handleRoomsSave=newRooms=>{ setRooms(newRooms); saveData(pages,newRooms); };
-
   const curPage=pages.find(p=>p.id===activePage);
 
   if(!authed) return <AuthScreen onAuth={()=>setAuthed(true)}/>;
@@ -406,8 +427,7 @@ export default function App() {
           <div style={{padding:"8px 8px 0",flex:1,overflowY:"auto"}}>
             <div style={{padding:"4px 12px",fontSize:11,fontWeight:600,color:"#9b9a97",letterSpacing:"0.05em"}}>ページ</div>
             {pages.map((p,i)=>(
-              <div key={p.id}
-                draggable
+              <div key={p.id} draggable
                 onDragStart={e=>{e.dataTransfer.effectAllowed="move";pageDragItem.current=i;}}
                 onDragEnter={()=>pageDragOver.current=i}
                 onDragEnd={()=>{
@@ -418,7 +438,7 @@ export default function App() {
                   setPages(np); saveData(np,rooms);
                 }}
                 onDragOver={e=>e.preventDefault()}
-                onTouchStart={e=>{ pageTouchItem.current=i; pageTouchTimer.current=setTimeout(()=>{ pageDragging.current=true; },300); }}
+                onTouchStart={e=>{ pageTouchItem.current=i; pageTouchTimer.current=setTimeout(()=>{pageDragging.current=true;},300); }}
                 onTouchMove={e=>{ if(!pageDragging.current) return; const t=e.touches[0]; const el=document.elementFromPoint(t.clientX,t.clientY)?.closest("[data-pageidx]"); if(el) pageDragOver.current=parseInt(el.dataset.pageidx); }}
                 onTouchEnd={()=>{ clearTimeout(pageTouchTimer.current); if(pageDragging.current&&pageDragOver.current!=null&&pageTouchItem.current!=null){ const np=[...pages]; const dragged=np.splice(pageTouchItem.current,1)[0]; np.splice(pageDragOver.current,0,dragged); setPages(np); saveData(np,rooms); } pageDragging.current=false; pageTouchItem.current=null; pageDragOver.current=null; }}
                 data-pageidx={i}
