@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { db } from "./firebase";
 import { doc, setDoc, onSnapshot } from "firebase/firestore";
 
@@ -13,6 +13,19 @@ const INIT_DATA = () => ({
 
 const serialize = data => ({ json: JSON.stringify(data) });
 const deserialize = doc => { try { return JSON.parse(doc.json); } catch(e) { return INIT_DATA(); } };
+
+// Excelのタブ区切りテキストをテーブルブロックに変換
+function parseExcelPaste(text) {
+  const rows = text.trim().split("\n").map(r => r.split("\t"));
+  if (rows.length < 1 || (rows.length === 1 && rows[0].length < 2)) return null;
+  const headers = rows[0].map((h,i) => h.trim() || `列${i+1}`);
+  const dataRows = rows.slice(1).map(r => {
+    while (r.length < headers.length) r.push("");
+    return r.map(c => c.trim());
+  });
+  if (dataRows.length === 0) dataRows.push(headers.map(() => ""));
+  return { id: genId(), type: "table", headers, rows: dataRows };
+}
 
 function TableBlock({ block, onChange }) {
   const rows = block.rows || [["",""],["",""]];
@@ -51,18 +64,12 @@ function TextBlock({ block, onChange, onKeyDown }) {
   const ref = useRef();
   const [local, setLocal] = useState(block.content);
   const composing = useRef(false);
-
   useEffect(()=>{ setLocal(block.content); },[block.content]);
   useEffect(()=>{
-    if(ref.current){
-      ref.current.style.height="auto";
-      ref.current.style.height=ref.current.scrollHeight+"px";
-    }
+    if(ref.current){ ref.current.style.height="auto"; ref.current.style.height=ref.current.scrollHeight+"px"; }
   },[local]);
-
   return (
     <div style={{display:"flex",alignItems:"flex-start",gap:4,margin:"2px 0"}}>
-      <span style={{color:"#c4c4c0",fontSize:12,marginTop:6,userSelect:"none"}}>⠿</span>
       <textarea ref={ref} value={local}
         onChange={e=>{ setLocal(e.target.value); if(!composing.current) onChange({...block,content:e.target.value}); }}
         onCompositionStart={()=>composing.current=true}
@@ -79,19 +86,56 @@ function PageEditor({ page, onUpdate }) {
   const [blocks,setBlocks]=useState(page.blocks);
   const [showEmoji,setShowEmoji]=useState(false);
   const [addMenu,setAddMenu]=useState(false);
+  const [pasteMsg,setPasteMsg]=useState("");
+  const dragItem=useRef(null);
+  const dragOver=useRef(null);
+
   useEffect(()=>{setTitle(page.title);setEmoji(page.emoji);setBlocks(page.blocks);},[page.id]);
+
   const save=(t,e,b)=>onUpdate({...page,title:t,emoji:e,blocks:b});
   const updateBlock=(id,nb)=>{const b2=blocks.map(b=>b.id===id?nb:b);setBlocks(b2);save(title,emoji,b2);};
   const addBlock=type=>{
-    const nb=type==="table"
-      ?{id:genId(),type:"table",headers:["列1","列2"],rows:[["",""],["",""]]}
-      :{id:genId(),type:"text",content:""};
+    const nb=type==="table"?{id:genId(),type:"table",headers:["列1","列2"],rows:[["",""],["",""]]}:{id:genId(),type:"text",content:""};
     const b2=[...blocks,nb];setBlocks(b2);save(title,emoji,b2);setAddMenu(false);
   };
   const deleteBlock=id=>{const b2=blocks.filter(b=>b.id!==id);setBlocks(b2);save(title,emoji,b2);};
-  const handleKey=(e,id)=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();addBlock("text");}if(e.key==="Backspace"&&blocks.find(b=>b.id===id)?.content===""){e.preventDefault();deleteBlock(id);}};
+  const handleKey=(e,id)=>{
+    if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();addBlock("text");}
+    if(e.key==="Backspace"&&blocks.find(b=>b.id===id)?.content===""){e.preventDefault();deleteBlock(id);}
+  };
+
+  // ドラッグ＆ドロップ
+  const onDragStart=(i)=>{ dragItem.current=i; };
+  const onDragEnter=(i)=>{ dragOver.current=i; };
+  const onDragEnd=()=>{
+    const b2=[...blocks];
+    const dragged=b2.splice(dragItem.current,1)[0];
+    b2.splice(dragOver.current,0,dragged);
+    dragItem.current=null; dragOver.current=null;
+    setBlocks(b2); save(title,emoji,b2);
+  };
+
+  // Excelコピペ
+  const handlePaste = useCallback((e) => {
+    const text = e.clipboardData.getData("text/plain");
+    if (!text.includes("\t")) return; // タブなし＝Excel以外
+    const tbl = parseExcelPaste(text);
+    if (!tbl) return;
+    e.preventDefault();
+    const b2=[...blocks,tbl];
+    setBlocks(b2); save(title,emoji,b2);
+    setPasteMsg("✅ Excelの表を貼り付けました");
+    setTimeout(()=>setPasteMsg(""),2500);
+  }, [blocks, title, emoji]);
+
+  useEffect(()=>{
+    document.addEventListener("paste", handlePaste);
+    return ()=>document.removeEventListener("paste", handlePaste);
+  },[handlePaste]);
+
   return (
     <div style={{maxWidth:720,margin:"0 auto",padding:"60px 40px 40px"}}>
+      {pasteMsg&&<div style={{position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",background:"#37352f",color:"#fff",padding:"8px 20px",borderRadius:8,fontSize:13,zIndex:200,boxShadow:"0 4px 12px rgba(0,0,0,0.2)"}}>{pasteMsg}</div>}
       <div style={{position:"relative",display:"inline-block",marginBottom:8}}>
         <span style={{fontSize:40,cursor:"pointer",userSelect:"none"}} onClick={()=>setShowEmoji(v=>!v)}>{emoji}</span>
         {showEmoji&&<div style={{position:"absolute",top:48,left:0,background:"#fff",border:"1px solid #e0e0e0",borderRadius:8,padding:8,display:"flex",flexWrap:"wrap",gap:4,zIndex:100,boxShadow:"0 4px 16px rgba(0,0,0,0.1)"}}>
@@ -100,27 +144,38 @@ function PageEditor({ page, onUpdate }) {
       </div>
       <input value={title} onChange={e=>{setTitle(e.target.value);save(e.target.value,emoji,blocks);}} placeholder="タイトルなし"
         style={{display:"block",width:"100%",border:"none",outline:"none",fontSize:36,fontWeight:700,color:"#37352f",fontFamily:"inherit",background:"transparent",marginBottom:16,padding:0}}/>
-      {blocks.map(b=>(
-        <div key={b.id} style={{position:"relative",paddingRight:24}} onMouseOver={e=>e.currentTarget.querySelector(".del-btn").style.opacity=1} onMouseOut={e=>e.currentTarget.querySelector(".del-btn").style.opacity=0}>
+
+      {blocks.map((b,i)=>(
+        <div key={b.id}
+          draggable
+          onDragStart={()=>onDragStart(i)}
+          onDragEnter={()=>onDragEnter(i)}
+          onDragEnd={onDragEnd}
+          onDragOver={e=>e.preventDefault()}
+          style={{position:"relative",paddingRight:24,paddingLeft:24,marginBottom:2,borderRadius:6,transition:"background 0.1s"}}
+          onMouseOver={e=>{e.currentTarget.querySelector(".del-btn").style.opacity=1;e.currentTarget.querySelector(".drag-handle").style.opacity=1;}}
+          onMouseOut={e=>{e.currentTarget.querySelector(".del-btn").style.opacity=0;e.currentTarget.querySelector(".drag-handle").style.opacity=0;}}>
+          {/* ドラッグハンドル */}
+          <span className="drag-handle" style={{position:"absolute",left:0,top:6,opacity:0,cursor:"grab",fontSize:14,color:"#c4c4c0",padding:"2px 4px",userSelect:"none",transition:"opacity 0.1s"}}>⠿</span>
           {b.type==="text"&&<TextBlock block={b} onChange={nb=>updateBlock(b.id,nb)} onKeyDown={e=>handleKey(e,b.id)}/>}
           {b.type==="table"&&<TableBlock block={b} onChange={nb=>updateBlock(b.id,nb)}/>}
           <span className="del-btn" onClick={()=>deleteBlock(b.id)} style={{position:"absolute",top:4,right:0,opacity:0,cursor:"pointer",fontSize:13,color:"#9b9a97",padding:"2px 4px",borderRadius:4,transition:"opacity 0.1s"}}>✕</span>
         </div>
       ))}
+
       <div style={{marginTop:16,position:"relative"}}>
         <button onClick={()=>setAddMenu(v=>!v)} style={{border:"none",background:"none",cursor:"pointer",color:"#9b9a97",fontSize:14,padding:"4px 8px",borderRadius:4,display:"flex",alignItems:"center",gap:4}}>
           <span style={{fontSize:18,fontWeight:300}}>+</span> ブロックを追加
         </button>
         {addMenu&&<div style={{position:"fixed",bottom:80,left:"50%",transform:"translateX(-50%)",background:"#fff",border:"1px solid #e0e0e0",borderRadius:8,boxShadow:"0 4px 16px rgba(0,0,0,0.1)",zIndex:100,overflow:"hidden",minWidth:200}}>
           {[["text","📝 テキスト"],["table","📊 テーブル"]].map(([t,label])=>(
-            <div key={t}
-              onClick={()=>addBlock(t)}
-              onTouchEnd={e=>{e.preventDefault();addBlock(t);}}
-              style={{padding:"16px 24px",cursor:"pointer",fontSize:16,color:"#37352f",borderBottom:"1px solid #f0f0ef"}}>
-              {label}
-            </div>
+            <div key={t} onClick={()=>addBlock(t)} onTouchEnd={e=>{e.preventDefault();addBlock(t);}}
+              style={{padding:"16px 24px",cursor:"pointer",fontSize:16,color:"#37352f",borderBottom:"1px solid #f0f0ef"}}>{label}</div>
           ))}
         </div>}
+      </div>
+      <div style={{marginTop:24,padding:"12px 16px",background:"#f7f6f3",borderRadius:8,fontSize:12,color:"#9b9a97"}}>
+        💡 Excelの表をコピーして、このページ上でそのまま貼り付けるとテーブルになります
       </div>
     </div>
   );
