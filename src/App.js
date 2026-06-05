@@ -12,25 +12,22 @@ const INIT_DATA = () => ({
 });
 
 const serialize = data => ({ json: JSON.stringify(data) });
-const deserialize = doc => { try { return JSON.parse(doc.json); } catch(e) { return INIT_DATA(); } };
+const deserialize = d => { try { return JSON.parse(d.json); } catch(e) { return INIT_DATA(); } };
 
-// Excelのタブ区切りテキストをテーブルブロックに変換
 function parseExcelPaste(text) {
   const rows = text.trim().split("\n").map(r => r.split("\t"));
   if (rows.length < 1 || (rows.length === 1 && rows[0].length < 2)) return null;
   const headers = rows[0].map((h,i) => h.trim() || `列${i+1}`);
-  const dataRows = rows.slice(1).map(r => {
-    while (r.length < headers.length) r.push("");
-    return r.map(c => c.trim());
-  });
-  if (dataRows.length === 0) dataRows.push(headers.map(() => ""));
+  const dataRows = rows.slice(1).map(r => { while(r.length < headers.length) r.push(""); return r.map(c=>c.trim()); });
+  if (dataRows.length === 0) dataRows.push(headers.map(()=>""));
   return { id: genId(), type: "table", headers, rows: dataRows };
 }
 
 function TableBlock({ block, onChange }) {
   const rows = block.rows || [["",""],["",""]];
   const headers = block.headers || ["列1","列2"];
-  const [menu,setMenu]=useState(null); // {rowIndex, x, y}
+  const [menu, setMenu] = useState(null);
+  const longPressTimer = useRef(null);
 
   const update = (r,c,v) => { const nr=rows.map((row,ri)=>ri===r?row.map((cell,ci)=>ci===c?v:cell):row); onChange({...block,rows:nr,headers}); };
   const updateH = (c,v) => { const nh=headers.map((h,i)=>i===c?v:h); onChange({...block,rows,headers:nh}); };
@@ -39,26 +36,17 @@ function TableBlock({ block, onChange }) {
   const deleteRow = r => { if(rows.length<=1) return; onChange({...block,rows:rows.filter((_,i)=>i!==r),headers}); setMenu(null); };
   const insertRow = (r,offset) => { const nr=[...rows]; nr.splice(r+offset,0,headers.map(()=>"")); onChange({...block,rows:nr,headers}); setMenu(null); };
 
-  const longPressTimer = useRef(null);
-
-  const handleRowContext = (e,r) => {
-    e.preventDefault();
-    setMenu({rowIndex:r, x:e.clientX, y:e.clientY});
-  };
+  const handleRowContext = (e,r) => { e.preventDefault(); setMenu({rowIndex:r,x:e.clientX,y:e.clientY}); };
   const handleTouchStart = (e,r) => {
     const touch = e.touches[0];
-    longPressTimer.current = setTimeout(()=>{
-      setMenu({rowIndex:r, x:touch.clientX, y:touch.clientY});
-    }, 500);
+    longPressTimer.current = setTimeout(()=>{ setMenu({rowIndex:r,x:touch.clientX,y:touch.clientY}); }, 500);
   };
-  const handleTouchEnd = () => {
-    clearTimeout(longPressTimer.current);
-  };
+  const handleTouchEnd = () => clearTimeout(longPressTimer.current);
 
   useEffect(()=>{
-    const close=()=>setMenu(null);
-    window.addEventListener("click",close);
-    window.addEventListener("touchstart",close);
+    const close = ()=>setMenu(null);
+    window.addEventListener("click", close);
+    window.addEventListener("touchstart", close);
     return ()=>{ window.removeEventListener("click",close); window.removeEventListener("touchstart",close); };
   },[]);
 
@@ -149,7 +137,6 @@ function PageEditor({ page, onUpdate }) {
     if(e.key==="Backspace"&&blocks.find(b=>b.id===id)?.content===""){e.preventDefault();deleteBlock(id);}
   };
 
-  // ドラッグ＆ドロップ
   const onDragStart=(i)=>{ dragItem.current=i; };
   const onDragEnter=(i)=>{ dragOver.current=i; };
   const onDragEnd=()=>{
@@ -160,10 +147,9 @@ function PageEditor({ page, onUpdate }) {
     setBlocks(b2); save(title,emoji,b2);
   };
 
-  // Excelコピペ
   const handlePaste = useCallback((e) => {
     const text = e.clipboardData.getData("text/plain");
-    if (!text.includes("\t")) return; // タブなし＝Excel以外
+    if (!text.includes("\t")) return;
     const tbl = parseExcelPaste(text);
     if (!tbl) return;
     e.preventDefault();
@@ -171,11 +157,11 @@ function PageEditor({ page, onUpdate }) {
     setBlocks(b2); save(title,emoji,b2);
     setPasteMsg("✅ Excelの表を貼り付けました");
     setTimeout(()=>setPasteMsg(""),2500);
-  }, [blocks, title, emoji]);
+  },[blocks,title,emoji]);
 
   useEffect(()=>{
-    document.addEventListener("paste", handlePaste);
-    return ()=>document.removeEventListener("paste", handlePaste);
+    document.addEventListener("paste",handlePaste);
+    return ()=>document.removeEventListener("paste",handlePaste);
   },[handlePaste]);
 
   return (
@@ -189,7 +175,6 @@ function PageEditor({ page, onUpdate }) {
       </div>
       <input value={title} onChange={e=>{setTitle(e.target.value);save(e.target.value,emoji,blocks);}} placeholder="タイトルなし"
         style={{display:"block",width:"100%",border:"none",outline:"none",fontSize:36,fontWeight:700,color:"#37352f",fontFamily:"inherit",background:"transparent",marginBottom:16,padding:0}}/>
-
       {blocks.map((b,i)=>(
         <div key={b.id}
           draggable
@@ -197,17 +182,15 @@ function PageEditor({ page, onUpdate }) {
           onDragEnter={()=>onDragEnter(i)}
           onDragEnd={onDragEnd}
           onDragOver={e=>e.preventDefault()}
-          style={{position:"relative",paddingRight:24,paddingLeft:24,marginBottom:2,borderRadius:6,transition:"background 0.1s"}}
+          style={{position:"relative",paddingRight:24,paddingLeft:24,marginBottom:2,borderRadius:6}}
           onMouseOver={e=>{e.currentTarget.querySelector(".del-btn").style.opacity=1;e.currentTarget.querySelector(".drag-handle").style.opacity=1;}}
           onMouseOut={e=>{e.currentTarget.querySelector(".del-btn").style.opacity=0;e.currentTarget.querySelector(".drag-handle").style.opacity=0;}}>
-          {/* ドラッグハンドル */}
           <span className="drag-handle" style={{position:"absolute",left:0,top:6,opacity:0,cursor:"grab",fontSize:14,color:"#c4c4c0",padding:"2px 4px",userSelect:"none",transition:"opacity 0.1s"}}>⠿</span>
           {b.type==="text"&&<TextBlock block={b} onChange={nb=>updateBlock(b.id,nb)} onKeyDown={e=>handleKey(e,b.id)}/>}
           {b.type==="table"&&<TableBlock block={b} onChange={nb=>updateBlock(b.id,nb)}/>}
           <span className="del-btn" onClick={()=>deleteBlock(b.id)} style={{position:"absolute",top:4,right:0,opacity:0,cursor:"pointer",fontSize:13,color:"#9b9a97",padding:"2px 4px",borderRadius:4,transition:"opacity 0.1s"}}>✕</span>
         </div>
       ))}
-
       <div style={{marginTop:16,position:"relative"}}>
         <button onClick={()=>setAddMenu(v=>!v)} style={{border:"none",background:"none",cursor:"pointer",color:"#9b9a97",fontSize:14,padding:"4px 8px",borderRadius:4,display:"flex",alignItems:"center",gap:4}}>
           <span style={{fontSize:18,fontWeight:300}}>+</span> ブロックを追加
@@ -289,36 +272,29 @@ function AuthScreen({ onAuth }) {
   const [err,setErr]=useState("");
   const [shake,setShake]=useState(false);
   const handle=()=>{
-    if(username==="Rs08" && password==="ribc2026school"){ onAuth(); return; }
+    if(username==="Rs08"&&password==="ribc2026school"){ onAuth(); return; }
     setErr("Authorization Required");
-    setShake(true);
-    setTimeout(()=>setShake(false),600);
+    setShake(true); setTimeout(()=>setShake(false),600);
   };
   return (
     <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#1a1a2e",fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif"}}>
-      <div style={{background:"#16213e",borderRadius:12,padding:"40px 48px",boxShadow:"0 8px 32px rgba(0,0,0,0.4)",minWidth:360,textAlign:"center",border:"1px solid #0f3460",
-        transform:shake?"translateX(0)":"none",animation:shake?"shake 0.1s ease-in-out 6":"none"}}>
+      <div style={{background:"#16213e",borderRadius:12,padding:"40px 48px",boxShadow:"0 8px 32px rgba(0,0,0,0.4)",minWidth:360,textAlign:"center",border:"1px solid #0f3460",animation:shake?"shake 0.5s":"none"}}>
         <style>{`@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}`}</style>
         <div style={{fontSize:36,marginBottom:8}}>🔒</div>
-        <h2 style={{margin:"0 0 4px",fontSize:20,color:"#e0e0e0",letterSpacing:"0.05em"}}>このサイトにアクセスするにはサインインしてください</h2>
+        <h2 style={{margin:"0 0 4px",fontSize:20,color:"#e0e0e0"}}>このサイトにアクセスするにはサインインしてください</h2>
         <p style={{margin:"0 0 28px",color:"#6b7280",fontSize:13}}>MyNotion — 認証が必要です</p>
         <div style={{textAlign:"left",marginBottom:12}}>
           <label style={{fontSize:12,color:"#9b9a97",display:"block",marginBottom:4}}>ユーザー名</label>
           <input value={username} onChange={e=>setUsername(e.target.value)}
-            style={{width:"100%",boxSizing:"border-box",border:"1px solid #0f3460",borderRadius:6,padding:"10px 14px",fontSize:14,outline:"none",color:"#e0e0e0",background:"#0f3460",marginBottom:0}}/>
+            style={{width:"100%",boxSizing:"border-box",border:"1px solid #0f3460",borderRadius:6,padding:"10px 14px",fontSize:14,outline:"none",color:"#e0e0e0",background:"#0f3460"}}/>
         </div>
         <div style={{textAlign:"left",marginBottom:16}}>
           <label style={{fontSize:12,color:"#9b9a97",display:"block",marginBottom:4}}>パスワード</label>
-          <input type="password" value={password} onChange={e=>setPassword(e.target.value)}
-            onKeyDown={e=>e.key==="Enter"&&handle()}
+          <input type="password" value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handle()}
             style={{width:"100%",boxSizing:"border-box",border:"1px solid #0f3460",borderRadius:6,padding:"10px 14px",fontSize:14,outline:"none",color:"#e0e0e0",background:"#0f3460"}}/>
         </div>
-        {err&&<div style={{background:"#3b0a0a",border:"1px solid #e03e3e",borderRadius:6,padding:"10px 14px",marginBottom:16,color:"#e03e3e",fontSize:13,fontWeight:600}}>
-          🚫 {err}
-        </div>}
-        <button onClick={handle} style={{width:"100%",background:"#e94560",color:"#fff",border:"none",borderRadius:6,padding:"11px 0",fontSize:15,fontWeight:600,cursor:"pointer"}}>
-          サインイン
-        </button>
+        {err&&<div style={{background:"#3b0a0a",border:"1px solid #e03e3e",borderRadius:6,padding:"10px 14px",marginBottom:16,color:"#e03e3e",fontSize:13,fontWeight:600}}>🚫 {err}</div>}
+        <button onClick={handle} style={{width:"100%",background:"#e94560",color:"#fff",border:"none",borderRadius:6,padding:"11px 0",fontSize:15,fontWeight:600,cursor:"pointer"}}>サインイン</button>
       </div>
     </div>
   );
@@ -332,7 +308,7 @@ function JoinScreen({ onJoin }) {
   const handle=()=>{
     if(name.trim().length<1){setErr("名前を入力してください");return;}
     if(code.trim().length<3){setErr("コードは3文字以上入力してください");return;}
-    onJoin(code.trim().toLowerCase(), name.trim());
+    onJoin(code.trim().toLowerCase(),name.trim());
   };
   return (
     <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#f7f6f3",fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif"}}>
@@ -362,50 +338,49 @@ export default function App() {
   const [activePage,setActivePage]=useState(null);
   const [view,setView]=useState("page");
   const [sidebarOpen,setSidebarOpen]=useState(true);
+  const saveTimeout=useRef(null);
+  const pageDragItem=useRef(null);
+  const pageDragOver=useRef(null);
+  const pageDragging=useRef(false);
+  const pageTouchItem=useRef(null);
+  const pageTouchTimer=useRef(null);
 
   useEffect(()=>{
     if(!joined) return;
-    const ref = doc(db, "workspaces", roomCode);
-    const unsub = onSnapshot(ref, snap => {
-      if(snap.exists()) {
-        const d = deserialize(snap.data());
-        setPages(d.pages||[]);
-        setRooms(d.rooms||[]);
-        setActivePage(ap => ap || d.pages?.[0]?.id || null);
+    const ref=doc(db,"workspaces",roomCode);
+    const unsub=onSnapshot(ref,snap=>{
+      if(snap.exists()){
+        const d=deserialize(snap.data());
+        setPages(d.pages||[]); setRooms(d.rooms||[]);
+        setActivePage(ap=>ap||d.pages?.[0]?.id||null);
       } else {
-        const d = INIT_DATA();
-        setDoc(ref, serialize(d));
-        setPages(d.pages); setRooms(d.rooms);
-        setActivePage(d.pages[0].id);
+        const d=INIT_DATA();
+        setDoc(ref,serialize(d));
+        setPages(d.pages); setRooms(d.rooms); setActivePage(d.pages[0].id);
       }
     });
     return ()=>unsub();
-  },[joined, roomCode]);
+  },[joined,roomCode]);
 
-  const saveTimeout = useRef(null);
-  const pageDragItem = useRef(null);
-  const pageDragOver = useRef(null);
-  const pageDragging = useRef(false);
-  const pageTouchItem = useRef(null);
-  const pageTouchTimer = useRef(null);
-  const saveData = (newPages, newRooms) => {
+  const saveData=(newPages,newRooms)=>{
     if(saveTimeout.current) clearTimeout(saveTimeout.current);
-    saveTimeout.current = setTimeout(()=>{
-      const ref = doc(db, "workspaces", roomCode);
-      setDoc(ref, serialize({pages: newPages, rooms: newRooms}));
-    }, 1000);
+    saveTimeout.current=setTimeout(()=>{
+      setDoc(doc(db,"workspaces",roomCode),serialize({pages:newPages,rooms:newRooms}));
+    },1000);
   };
 
-  const handleJoin = (code, name) => { setRoomCode(code); setUsername(name); setJoined(true); };
-  const updatePage = p => { const np=pages.map(pg=>pg.id===p.id?p:pg); setPages(np); saveData(np,rooms); };
-  const addPage = () => { const p={id:genId(),emoji:"📄",title:"新しいページ",blocks:[{id:genId(),type:"text",content:""}]}; const np=[...pages,p]; setPages(np); setActivePage(p.id); setView("page"); saveData(np,rooms); };
-  const deletePage = id => { const np=pages.filter(p=>p.id!==id); setPages(np); if(activePage===id) setActivePage(np[0]?.id||null); saveData(np,rooms); };
-  const duplicatePage = id => {
-    const src = pages.find(p=>p.id===id);
-    if(!src) return;
-    const handleRoomsSave = (newRooms) => { setRooms(newRooms); saveData(pages,newRooms); };
+  const handleJoin=(code,name)=>{ setRoomCode(code); setUsername(name); setJoined(true); };
+  const updatePage=p=>{ const np=pages.map(pg=>pg.id===p.id?p:pg); setPages(np); saveData(np,rooms); };
+  const addPage=()=>{ const p={id:genId(),emoji:"📄",title:"新しいページ",blocks:[{id:genId(),type:"text",content:""}]}; const np=[...pages,p]; setPages(np); setActivePage(p.id); setView("page"); saveData(np,rooms); };
+  const deletePage=id=>{ const np=pages.filter(p=>p.id!==id); setPages(np); if(activePage===id) setActivePage(np[0]?.id||null); saveData(np,rooms); };
+  const duplicatePage=id=>{
+    const src=pages.find(p=>p.id===id); if(!src) return;
+    const np2={...src,id:genId(),title:src.title+" のコピー",blocks:src.blocks.map(b=>({...b,id:genId()}))};
+    const np=[...pages,np2]; setPages(np); setActivePage(np2.id); setView("page"); saveData(np,rooms);
+  };
+  const handleRoomsSave=newRooms=>{ setRooms(newRooms); saveData(pages,newRooms); };
 
-  const curPage = pages.find(p=>p.id===activePage);
+  const curPage=pages.find(p=>p.id===activePage);
 
   if(!authed) return <AuthScreen onAuth={()=>setAuthed(true)}/>;
   if(!joined) return <JoinScreen onJoin={handleJoin}/>;
@@ -428,12 +403,12 @@ export default function App() {
               💬 チャット
             </div>
           </div>
-          <div style={{padding:"8px 8px 0"}}>
+          <div style={{padding:"8px 8px 0",flex:1,overflowY:"auto"}}>
             <div style={{padding:"4px 12px",fontSize:11,fontWeight:600,color:"#9b9a97",letterSpacing:"0.05em"}}>ページ</div>
             {pages.map((p,i)=>(
               <div key={p.id}
                 draggable
-                onDragStart={e=>{ e.dataTransfer.effectAllowed="move"; pageDragItem.current=i; }}
+                onDragStart={e=>{e.dataTransfer.effectAllowed="move";pageDragItem.current=i;}}
                 onDragEnter={()=>pageDragOver.current=i}
                 onDragEnd={()=>{
                   const np=[...pages];
@@ -444,36 +419,19 @@ export default function App() {
                 }}
                 onDragOver={e=>e.preventDefault()}
                 onTouchStart={e=>{ pageTouchItem.current=i; pageTouchTimer.current=setTimeout(()=>{ pageDragging.current=true; },300); }}
-                onTouchMove={e=>{
-                  if(!pageDragging.current) return;
-                  const t=e.touches[0];
-                  const el=document.elementFromPoint(t.clientX,t.clientY)?.closest("[data-pageidx]");
-                  if(el) pageDragOver.current=parseInt(el.dataset.pageidx);
-                }}
-                onTouchEnd={()=>{
-                  clearTimeout(pageTouchTimer.current);
-                  if(pageDragging.current && pageDragOver.current!=null && pageTouchItem.current!=null){
-                    const np=[...pages];
-                    const dragged=np.splice(pageTouchItem.current,1)[0];
-                    np.splice(pageDragOver.current,0,dragged);
-                    setPages(np); saveData(np,rooms);
-                  }
-                  pageDragging.current=false; pageTouchItem.current=null; pageDragOver.current=null;
-                }}
+                onTouchMove={e=>{ if(!pageDragging.current) return; const t=e.touches[0]; const el=document.elementFromPoint(t.clientX,t.clientY)?.closest("[data-pageidx]"); if(el) pageDragOver.current=parseInt(el.dataset.pageidx); }}
+                onTouchEnd={()=>{ clearTimeout(pageTouchTimer.current); if(pageDragging.current&&pageDragOver.current!=null&&pageTouchItem.current!=null){ const np=[...pages]; const dragged=np.splice(pageTouchItem.current,1)[0]; np.splice(pageDragOver.current,0,dragged); setPages(np); saveData(np,rooms); } pageDragging.current=false; pageTouchItem.current=null; pageDragOver.current=null; }}
                 data-pageidx={i}
                 style={{padding:"5px 12px",borderRadius:4,cursor:"grab",fontSize:14,color:activePage===p.id&&view==="page"?"#37352f":"#6b6b6b",background:activePage===p.id&&view==="page"?"#e9e9e8":"transparent",display:"flex",alignItems:"center",justifyContent:"space-between"}}
                 onClick={()=>{setActivePage(p.id);setView("page");}}>
                 <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.emoji} {p.title||"タイトルなし"}</span>
                 <span style={{display:"flex",alignItems:"center",gap:4,flexShrink:0,marginLeft:4}}>
-                  <span onClick={e=>{e.stopPropagation();duplicatePage(p.id);}} title="複製"
-                    style={{color:"#9b9a97",fontSize:13,padding:"1px 3px",cursor:"pointer",borderRadius:3,lineHeight:1}}>⧉</span>
-                  <span onClick={e=>{e.stopPropagation();deletePage(p.id);}} title="削除"
-                    style={{color:"#9b9a97",fontSize:13,padding:"1px 3px",cursor:"pointer",borderRadius:3,lineHeight:1}}>✕</span>
+                  <span onClick={e=>{e.stopPropagation();duplicatePage(p.id);}} title="複製" style={{color:"#9b9a97",fontSize:13,padding:"1px 3px",cursor:"pointer",borderRadius:3}}>⧉</span>
+                  <span onClick={e=>{e.stopPropagation();deletePage(p.id);}} title="削除" style={{color:"#9b9a97",fontSize:13,padding:"1px 3px",cursor:"pointer",borderRadius:3}}>✕</span>
                 </span>
               </div>
             ))}
           </div>
-          <div style={{flex:1}}/>
           <div style={{padding:"12px 8px",borderTop:"1px solid #e0e0e0"}}>
             <button onClick={addPage} style={{width:"100%",padding:"8px 0",background:"#fff",border:"1px solid #e0e0e0",borderRadius:6,cursor:"pointer",fontSize:14,color:"#37352f",fontWeight:500,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
               ＋ 新しいページ
