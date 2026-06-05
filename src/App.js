@@ -383,6 +383,11 @@ export default function App() {
   },[joined, roomCode]);
 
   const saveTimeout = useRef(null);
+  const pageDragItem = useRef(null);
+  const pageDragOver = useRef(null);
+  const pageDragging = useRef(false);
+  const pageTouchItem = useRef(null);
+  const pageTouchTimer = useRef(null);
   const saveData = (newPages, newRooms) => {
     if(saveTimeout.current) clearTimeout(saveTimeout.current);
     saveTimeout.current = setTimeout(()=>{
@@ -422,9 +427,38 @@ export default function App() {
           </div>
           <div style={{padding:"8px 8px 0"}}>
             <div style={{padding:"4px 12px",fontSize:11,fontWeight:600,color:"#9b9a97",letterSpacing:"0.05em"}}>ページ</div>
-            {pages.map(p=>(
+            {pages.map((p,i)=>(
               <div key={p.id}
-                style={{padding:"5px 12px",borderRadius:4,cursor:"pointer",fontSize:14,color:activePage===p.id&&view==="page"?"#37352f":"#6b6b6b",background:activePage===p.id&&view==="page"?"#e9e9e8":"transparent",display:"flex",alignItems:"center",justifyContent:"space-between"}}
+                draggable
+                onDragStart={e=>{ e.dataTransfer.effectAllowed="move"; pageDragItem.current=i; }}
+                onDragEnter={()=>pageDragOver.current=i}
+                onDragEnd={()=>{
+                  const np=[...pages];
+                  const dragged=np.splice(pageDragItem.current,1)[0];
+                  np.splice(pageDragOver.current,0,dragged);
+                  pageDragItem.current=null; pageDragOver.current=null;
+                  setPages(np); saveData(np,rooms);
+                }}
+                onDragOver={e=>e.preventDefault()}
+                onTouchStart={e=>{ pageTouchItem.current=i; pageTouchTimer.current=setTimeout(()=>{ pageDragging.current=true; },300); }}
+                onTouchMove={e=>{
+                  if(!pageDragging.current) return;
+                  const t=e.touches[0];
+                  const el=document.elementFromPoint(t.clientX,t.clientY)?.closest("[data-pageidx]");
+                  if(el) pageDragOver.current=parseInt(el.dataset.pageidx);
+                }}
+                onTouchEnd={()=>{
+                  clearTimeout(pageTouchTimer.current);
+                  if(pageDragging.current && pageDragOver.current!=null && pageTouchItem.current!=null){
+                    const np=[...pages];
+                    const dragged=np.splice(pageTouchItem.current,1)[0];
+                    np.splice(pageDragOver.current,0,dragged);
+                    setPages(np); saveData(np,rooms);
+                  }
+                  pageDragging.current=false; pageTouchItem.current=null; pageDragOver.current=null;
+                }}
+                data-pageidx={i}
+                style={{padding:"5px 12px",borderRadius:4,cursor:"grab",fontSize:14,color:activePage===p.id&&view==="page"?"#37352f":"#6b6b6b",background:activePage===p.id&&view==="page"?"#e9e9e8":"transparent",display:"flex",alignItems:"center",justifyContent:"space-between"}}
                 onClick={()=>{setActivePage(p.id);setView("page");}}>
                 <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.emoji} {p.title||"タイトルなし"}</span>
                 <span onClick={e=>{e.stopPropagation();deletePage(p.id);}} style={{color:"#c4c4c0",fontSize:11,flexShrink:0,marginLeft:4,padding:"0 2px",cursor:"pointer"}}>✕</span>
