@@ -464,9 +464,11 @@ export default function App() {
                 style={{padding:"5px 12px",borderRadius:4,cursor:"grab",fontSize:14,color:activePage===p.id&&view==="page"?"#37352f":"#6b6b6b",background:activePage===p.id&&view==="page"?"#e9e9e8":"transparent",display:"flex",alignItems:"center",justifyContent:"space-between"}}
                 onClick={()=>{setActivePage(p.id);setView("page");}}>
                 <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.emoji} {p.title||"タイトルなし"}</span>
-                <span style={{display:"flex",alignItems:"center",gap:2,flexShrink:0}}>
-                  <span onClick={e=>{e.stopPropagation();duplicatePage(p.id);}} title="複製" style={{color:"#c4c4c0",fontSize:11,padding:"0 2px",cursor:"pointer"}}>⧉</span>
-                  <span onClick={e=>{e.stopPropagation();deletePage(p.id);}} title="削除" style={{color:"#c4c4c0",fontSize:11,padding:"0 2px",cursor:"pointer"}}>✕</span>
+                <span style={{display:"flex",alignItems:"center",gap:4,flexShrink:0,marginLeft:4}}>
+                  <span onClick={e=>{e.stopPropagation();duplicatePage(p.id);}} title="複製"
+                    style={{color:"#9b9a97",fontSize:13,padding:"1px 3px",cursor:"pointer",borderRadius:3,lineHeight:1}}>⧉</span>
+                  <span onClick={e=>{e.stopPropagation();deletePage(p.id);}} title="削除"
+                    style={{color:"#9b9a97",fontSize:13,padding:"1px 3px",cursor:"pointer",borderRadius:3,lineHeight:1}}>✕</span>
                 </span>
               </div>
             ))}
