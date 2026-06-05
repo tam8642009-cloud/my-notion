@@ -1,18 +1,12 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { db } from "./firebase";
-import { doc, setDoc, onSnapshot } from "firebase/firestore";
+import {
+  collection, doc, setDoc, deleteDoc, onSnapshot, writeBatch, getDocs
+} from "firebase/firestore";
 
 const EMOJI_LIST = ["📄","📝","📊","🗂️","💡","🔖","🎯","📌"];
 function genId() { return Math.random().toString(36).slice(2,9); }
 function nowTime() { return new Date().toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"}); }
-
-const INIT_DATA = () => ({
-  pages: [{ id:"p1", emoji:"📝", title:"はじめてのページ", blocks:[{ id:"b1", type:"text", content:"ここに自由にテキストを入力できます。" }] }],
-  rooms: [{ id:"r1", name:"一般", messages:[] }],
-});
-
-const serialize = data => ({ json: JSON.stringify(data) });
-const deserialize = d => { try { return JSON.parse(d.json); } catch(e) { return INIT_DATA(); } };
 
 function parseExcelPaste(text) {
   const rows = text.trim().split("\n").map(r => r.split("\t"));
@@ -126,16 +120,11 @@ function PageEditor({ page, onUpdate }) {
     setTitle(page.title); setEmoji(page.emoji); setBlocks(page.blocks);
   },[page.id, page.title, page.emoji, page.blocks]);
 
-  const save = (t,e,b) => onUpdate({...page,title:t,emoji:e,blocks:b});
+  const save = useCallback((t,e,b) => onUpdate({...page,title:t,emoji:e,blocks:b}), [page,onUpdate]);
 
   const updateBlock = (id,nb) => {
-    setBlocks(prev => {
-      const b2 = prev.map(b=>b.id===id?nb:b);
-      save(title,emoji,b2);
-      return b2;
-    });
+    setBlocks(prev=>{ const b2=prev.map(b=>b.id===id?nb:b); save(title,emoji,b2); return b2; });
   };
-
   const addBlock = type => {
     const nb = type==="table"
       ? {id:genId(),type:"table",headers:["列1","列2"],rows:[["",""],["",""]]}
@@ -143,16 +132,13 @@ function PageEditor({ page, onUpdate }) {
     setBlocks(prev=>{ const b2=[...prev,nb]; save(title,emoji,b2); return b2; });
     setAddMenu(false);
   };
-
   const deleteBlock = id => {
     setBlocks(prev=>{ const b2=prev.filter(b=>b.id!==id); save(title,emoji,b2); return b2; });
   };
-
   const handleKey = (e,id) => {
     if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); addBlock("text"); }
     if(e.key==="Backspace"&&blocks.find(b=>b.id===id)?.content===""){ e.preventDefault(); deleteBlock(id); }
   };
-
   const onDragStart = i => { dragItem.current=i; };
   const onDragEnter = i => { dragOver.current=i; };
   const onDragEnd = () => {
@@ -161,11 +147,9 @@ function PageEditor({ page, onUpdate }) {
       const dragged=b2.splice(dragItem.current,1)[0];
       b2.splice(dragOver.current,0,dragged);
       dragItem.current=null; dragOver.current=null;
-      save(title,emoji,b2);
-      return b2;
+      save(title,emoji,b2); return b2;
     });
   };
-
   const handlePaste = useCallback((e) => {
     const text = e.clipboardData.getData("text/plain");
     if (!text.includes("\t")) return;
@@ -175,7 +159,7 @@ function PageEditor({ page, onUpdate }) {
     setBlocks(prev=>{ const b2=[...prev,tbl]; save(title,emoji,b2); return b2; });
     setPasteMsg("✅ Excelの表を貼り付けました");
     setTimeout(()=>setPasteMsg(""),2500);
-  },[title,emoji]);
+  },[title,emoji,save]);
 
   useEffect(()=>{
     document.addEventListener("paste",handlePaste);
@@ -227,25 +211,37 @@ function PageEditor({ page, onUpdate }) {
   );
 }
 
-function Chat({ rooms, setRooms, onSave }) {
+function Chat({ roomCode, rooms, setRooms }) {
   const [activeRoom,setActiveRoom]=useState(rooms[0]?.id);
   const [input,setInput]=useState("");
   const [username,setUsername]=useState("あなた");
   const [newRoom,setNewRoom]=useState("");
   const endRef=useRef();
   const room=rooms.find(r=>r.id===activeRoom);
+
   useEffect(()=>endRef.current?.scrollIntoView({behavior:"smooth"}),[room?.messages?.length]);
+
+  const saveRoom = async (updatedRoom) => {
+    const ref = doc(db,"workspaces",roomCode,"rooms",updatedRoom.id);
+    await setDoc(ref,{ name:updatedRoom.name, messages:updatedRoom.messages });
+  };
+
   const send=()=>{
     if(!input.trim()) return;
     const msg={id:genId(),user:username,text:input.trim(),time:nowTime()};
-    const updated=rooms.map(r=>r.id===activeRoom?{...r,messages:[...r.messages,msg]}:r);
-    setRooms(updated); onSave(updated); setInput("");
+    const updated={...room,messages:[...room.messages,msg]};
+    setRooms(prev=>prev.map(r=>r.id===activeRoom?updated:r));
+    saveRoom(updated);
+    setInput("");
   };
-  const addRoom=()=>{
+  const addRoom=async()=>{
     if(!newRoom.trim()) return;
     const r={id:genId(),name:newRoom.trim(),messages:[]};
-    const updated=[...rooms,r]; setRooms(updated); onSave(updated); setActiveRoom(r.id); setNewRoom("");
+    setRooms(prev=>[...prev,r]);
+    await saveRoom(r);
+    setActiveRoom(r.id); setNewRoom("");
   };
+
   return (
     <div style={{display:"flex",height:"100%"}}>
       <div style={{width:160,borderRight:"1px solid #e0e0e0",padding:"12px 0",background:"#f7f6f3",flexShrink:0}}>
@@ -352,63 +348,110 @@ export default function App() {
   const [roomCode,setRoomCode]=useState("");
   const [username,setUsername]=useState("");
   const [pages,setPages]=useState([]);
+  const [pageOrder,setPageOrder]=useState([]); // ページ順序だけ別管理
   const [rooms,setRooms]=useState([]);
   const [activePage,setActivePage]=useState(null);
   const [view,setView]=useState("page");
   const [sidebarOpen,setSidebarOpen]=useState(true);
-  const saveTimeout=useRef(null);
-  const isSaving=useRef(false);
+  const saveTimers=useRef({});
   const pageDragItem=useRef(null);
   const pageDragOver=useRef(null);
   const pageDragging=useRef(false);
   const pageTouchItem=useRef(null);
   const pageTouchTimer=useRef(null);
 
+  // ページ一覧とページ順序をリッスン
   useEffect(()=>{
     if(!joined) return;
-    const ref=doc(db,"workspaces",roomCode);
-    const unsub=onSnapshot(ref,snap=>{
-      if(isSaving.current) return; // 保存中はスナップショットを無視
-      if(snap.exists()){
-        const d=deserialize(snap.data());
-        setPages(d.pages||[]); setRooms(d.rooms||[]);
-        setActivePage(ap=>ap||d.pages?.[0]?.id||null);
-      } else {
-        const d=INIT_DATA();
-        setDoc(ref,serialize(d));
-        setPages(d.pages); setRooms(d.rooms); setActivePage(d.pages[0].id);
+    const wsRef = doc(db,"workspaces",roomCode);
+
+    // ワークスペースメタ（ページ順序）
+    const unsubMeta = onSnapshot(wsRef, snap=>{
+      if(snap.exists() && snap.data().pageOrder){
+        setPageOrder(snap.data().pageOrder);
       }
     });
-    return ()=>unsub();
+
+    // ページサブコレクション
+    const unsubPages = onSnapshot(collection(db,"workspaces",roomCode,"pages"), snap=>{
+      const loaded = snap.docs.map(d=>({id:d.id,...d.data()}));
+      setPages(loaded);
+      setActivePage(ap => ap || loaded[0]?.id || null);
+    });
+
+    // チャットサブコレクション
+    const unsubRooms = onSnapshot(collection(db,"workspaces",roomCode,"rooms"), snap=>{
+      if(snap.empty){
+        // 初期チャットルーム作成
+        const r={id:"r1",name:"一般",messages:[]};
+        setDoc(doc(db,"workspaces",roomCode,"rooms","r1"),{name:"一般",messages:[]});
+        setRooms([r]);
+      } else {
+        setRooms(snap.docs.map(d=>({id:d.id,...d.data()})));
+      }
+    });
+
+    return ()=>{ unsubMeta(); unsubPages(); unsubRooms(); };
   },[joined,roomCode]);
 
-  const saveData=(newPages,newRooms)=>{
-    isSaving.current=true;
-    if(saveTimeout.current) clearTimeout(saveTimeout.current);
-    saveTimeout.current=setTimeout(async ()=>{
-      try {
-        const payload = serialize({pages:newPages,rooms:newRooms});
-        console.log("💾 保存開始 json.length=", payload.json.length);
-        await setDoc(doc(db,"workspaces",roomCode), payload);
-        console.log("✅ 保存完了");
-      } catch(e) {
-        console.error("❌ 保存失敗:", e);
-      } finally {
-        setTimeout(()=>{ isSaving.current=false; },500);
-      }
-    },800);
+  // ページ順序をFirestoreに保存
+  const savePageOrder = useCallback(async (order) => {
+    await setDoc(doc(db,"workspaces",roomCode),{pageOrder:order},{merge:true});
+  },[roomCode]);
+
+  // ページ1件をFirestoreに保存（デバウンス）
+  const savePage = useCallback((page) => {
+    if(saveTimers.current[page.id]) clearTimeout(saveTimers.current[page.id]);
+    saveTimers.current[page.id] = setTimeout(async ()=>{
+      const {id,...data} = page;
+      await setDoc(doc(db,"workspaces",roomCode,"pages",id), data);
+    }, 800);
+  },[roomCode]);
+
+  const updatePage = (p) => {
+    setPages(prev=>prev.map(pg=>pg.id===p.id?p:pg));
+    savePage(p);
   };
 
-  const handleJoin=(code,name)=>{ setRoomCode(code); setUsername(name); setJoined(true); };
-  const updatePage=p=>{ const np=pages.map(pg=>pg.id===p.id?p:pg); setPages(np); saveData(np,rooms); };
-  const addPage=()=>{ const p={id:genId(),emoji:"📄",title:"新しいページ",blocks:[{id:genId(),type:"text",content:""}]}; const np=[...pages,p]; setPages(np); setActivePage(p.id); setView("page"); saveData(np,rooms); };
-  const deletePage=id=>{ const np=pages.filter(p=>p.id!==id); setPages(np); if(activePage===id) setActivePage(np[0]?.id||null); saveData(np,rooms); };
-  const duplicatePage=id=>{
-    const src=pages.find(p=>p.id===id); if(!src) return;
-    const np2={...src,id:genId(),title:src.title+" のコピー",blocks:src.blocks.map(b=>({...b,id:genId()}))};
-    const np=[...pages,np2]; setPages(np); setActivePage(np2.id); setView("page"); saveData(np,rooms);
+  const addPage = async () => {
+    const p={id:genId(),emoji:"📄",title:"新しいページ",blocks:[{id:genId(),type:"text",content:""}]};
+    const {id,...data}=p;
+    await setDoc(doc(db,"workspaces",roomCode,"pages",id),data);
+    const newOrder=[...pageOrder,id];
+    setPageOrder(newOrder);
+    await savePageOrder(newOrder);
+    setPages(prev=>[...prev,p]);
+    setActivePage(id); setView("page");
   };
-  const handleRoomsSave=newRooms=>{ setRooms(newRooms); saveData(pages,newRooms); };
+
+  const deletePage = async (id) => {
+    await deleteDoc(doc(db,"workspaces",roomCode,"pages",id));
+    const newOrder=pageOrder.filter(oid=>oid!==id);
+    setPageOrder(newOrder);
+    await savePageOrder(newOrder);
+    setPages(prev=>prev.filter(p=>p.id!==id));
+    if(activePage===id) setActivePage(newOrder[0]||null);
+  };
+
+  const duplicatePage = async (id) => {
+    const src=pages.find(p=>p.id===id); if(!src) return;
+    const newId=genId();
+    const np2={...src,id:newId,title:src.title+" のコピー",blocks:src.blocks.map(b=>({...b,id:genId()}))};
+    const {id:_,...data}=np2;
+    await setDoc(doc(db,"workspaces",roomCode,"pages",newId),{...data});
+    const newOrder=[...pageOrder,newId];
+    setPageOrder(newOrder);
+    await savePageOrder(newOrder);
+    setPages(prev=>[...prev,np2]);
+    setActivePage(newId); setView("page");
+  };
+
+  // ページ順序に従って並び替え
+  const orderedPages = pageOrder.length > 0
+    ? pageOrder.map(id=>pages.find(p=>p.id===id)).filter(Boolean)
+    : pages;
+
+  const handleJoin=(code,name)=>{ setRoomCode(code); setUsername(name); setJoined(true); };
   const curPage=pages.find(p=>p.id===activePage);
 
   if(!authed) return <AuthScreen onAuth={()=>setAuthed(true)}/>;
@@ -434,21 +477,24 @@ export default function App() {
           </div>
           <div style={{padding:"8px 8px 0",flex:1,overflowY:"auto"}}>
             <div style={{padding:"4px 12px",fontSize:11,fontWeight:600,color:"#9b9a97",letterSpacing:"0.05em"}}>ページ</div>
-            {pages.map((p,i)=>(
+            {orderedPages.map((p,i)=>(
               <div key={p.id} draggable
                 onDragStart={e=>{e.dataTransfer.effectAllowed="move";pageDragItem.current=i;}}
                 onDragEnter={()=>pageDragOver.current=i}
                 onDragEnd={()=>{
-                  const np=[...pages];
-                  const dragged=np.splice(pageDragItem.current,1)[0];
-                  np.splice(pageDragOver.current,0,dragged);
+                  if(pageDragItem.current===null||pageDragOver.current===null) return;
+                  const newOrd=[...pageOrder];
+                  const fromId=orderedPages[pageDragItem.current]?.id;
+                  const toId=orderedPages[pageDragOver.current]?.id;
+                  const fi=newOrd.indexOf(fromId); const ti=newOrd.indexOf(toId);
+                  if(fi>=0&&ti>=0){ newOrd.splice(fi,1); newOrd.splice(ti,0,fromId); }
                   pageDragItem.current=null; pageDragOver.current=null;
-                  setPages(np); saveData(np,rooms);
+                  setPageOrder(newOrd); savePageOrder(newOrd);
                 }}
                 onDragOver={e=>e.preventDefault()}
                 onTouchStart={e=>{ pageTouchItem.current=i; pageTouchTimer.current=setTimeout(()=>{pageDragging.current=true;},300); }}
                 onTouchMove={e=>{ if(!pageDragging.current) return; const t=e.touches[0]; const el=document.elementFromPoint(t.clientX,t.clientY)?.closest("[data-pageidx]"); if(el) pageDragOver.current=parseInt(el.dataset.pageidx); }}
-                onTouchEnd={()=>{ clearTimeout(pageTouchTimer.current); if(pageDragging.current&&pageDragOver.current!=null&&pageTouchItem.current!=null){ const np=[...pages]; const dragged=np.splice(pageTouchItem.current,1)[0]; np.splice(pageDragOver.current,0,dragged); setPages(np); saveData(np,rooms); } pageDragging.current=false; pageTouchItem.current=null; pageDragOver.current=null; }}
+                onTouchEnd={()=>{ clearTimeout(pageTouchTimer.current); if(pageDragging.current&&pageDragOver.current!=null&&pageTouchItem.current!=null){ const newOrd=[...pageOrder]; const fromId=orderedPages[pageTouchItem.current]?.id; const toId=orderedPages[pageDragOver.current]?.id; const fi=newOrd.indexOf(fromId); const ti=newOrd.indexOf(toId); if(fi>=0&&ti>=0){newOrd.splice(fi,1);newOrd.splice(ti,0,fromId);} setPageOrder(newOrd); savePageOrder(newOrd); } pageDragging.current=false; pageTouchItem.current=null; pageDragOver.current=null; }}
                 data-pageidx={i}
                 style={{padding:"5px 12px",borderRadius:4,cursor:"grab",fontSize:14,color:activePage===p.id&&view==="page"?"#37352f":"#6b6b6b",background:activePage===p.id&&view==="page"?"#e9e9e8":"transparent",display:"flex",alignItems:"center",justifyContent:"space-between"}}
                 onClick={()=>{setActivePage(p.id);setView("page");}}>
@@ -477,7 +523,7 @@ export default function App() {
         </div>
         <div style={{flex:1,overflow:"auto"}}>
           {view==="page"&&curPage&&<PageEditor page={curPage} onUpdate={updatePage}/>}
-          {view==="chat"&&<Chat rooms={rooms} setRooms={setRooms} onSave={handleRoomsSave}/>}
+          {view==="chat"&&<Chat roomCode={roomCode} rooms={rooms} setRooms={setRooms}/>}
           {view==="page"&&!curPage&&(
             <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100%",color:"#9b9a97",fontSize:16}}>
               ページを選択するか、新しいページを作成してください
