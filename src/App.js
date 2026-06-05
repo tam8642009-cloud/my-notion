@@ -183,15 +183,54 @@ function Chat({ rooms, setRooms, onSave }) {
   );
 }
 
+function AuthScreen({ onAuth }) {
+  const [username,setUsername]=useState("");
+  const [password,setPassword]=useState("");
+  const [err,setErr]=useState("");
+  const [shake,setShake]=useState(false);
+  const handle=()=>{
+    if(username==="Rs08" && password==="ribc2026school"){ onAuth(); return; }
+    setErr("Authorization Required");
+    setShake(true);
+    setTimeout(()=>setShake(false),600);
+  };
+  return (
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#1a1a2e",fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif"}}>
+      <div style={{background:"#16213e",borderRadius:12,padding:"40px 48px",boxShadow:"0 8px 32px rgba(0,0,0,0.4)",minWidth:360,textAlign:"center",border:"1px solid #0f3460",
+        transform:shake?"translateX(0)":"none",animation:shake?"shake 0.1s ease-in-out 6":"none"}}>
+        <style>{`@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}`}</style>
+        <div style={{fontSize:36,marginBottom:8}}>🔒</div>
+        <h2 style={{margin:"0 0 4px",fontSize:20,color:"#e0e0e0",letterSpacing:"0.05em"}}>このサイトにアクセスするにはサインインしてください</h2>
+        <p style={{margin:"0 0 28px",color:"#6b7280",fontSize:13}}>MyNotion — 認証が必要です</p>
+        <div style={{textAlign:"left",marginBottom:12}}>
+          <label style={{fontSize:12,color:"#9b9a97",display:"block",marginBottom:4}}>ユーザー名</label>
+          <input value={username} onChange={e=>setUsername(e.target.value)}
+            style={{width:"100%",boxSizing:"border-box",border:"1px solid #0f3460",borderRadius:6,padding:"10px 14px",fontSize:14,outline:"none",color:"#e0e0e0",background:"#0f3460",marginBottom:0}}/>
+        </div>
+        <div style={{textAlign:"left",marginBottom:16}}>
+          <label style={{fontSize:12,color:"#9b9a97",display:"block",marginBottom:4}}>パスワード</label>
+          <input type="password" value={password} onChange={e=>setPassword(e.target.value)}
+            onKeyDown={e=>e.key==="Enter"&&handle()}
+            style={{width:"100%",boxSizing:"border-box",border:"1px solid #0f3460",borderRadius:6,padding:"10px 14px",fontSize:14,outline:"none",color:"#e0e0e0",background:"#0f3460"}}/>
+        </div>
+        {err&&<div style={{background:"#3b0a0a",border:"1px solid #e03e3e",borderRadius:6,padding:"10px 14px",marginBottom:16,color:"#e03e3e",fontSize:13,fontWeight:600}}>
+          🚫 {err}
+        </div>}
+        <button onClick={handle} style={{width:"100%",background:"#e94560",color:"#fff",border:"none",borderRadius:6,padding:"11px 0",fontSize:15,fontWeight:600,cursor:"pointer"}}>
+          サインイン
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function JoinScreen({ onJoin }) {
   const genCode=()=>{const s="abcdefghijklmnopqrstuvwxyz0123456789";const seg=()=>Array.from({length:4},()=>s[Math.floor(Math.random()*s.length)]).join("");return `${seg()}-${seg()}-${seg()}-${seg()}`;};
   const [code,setCode]=useState(genCode);
   const [name,setName]=useState("");
-  const [password,setPassword]=useState("");
   const [err,setErr]=useState("");
   const handle=()=>{
     if(name.trim().length<1){setErr("名前を入力してください");return;}
-    if(password !== "ribc2026school"){setErr("パスワードが違います");return;}
     if(code.trim().length<3){setErr("コードは3文字以上入力してください");return;}
     onJoin(code.trim().toLowerCase(), name.trim());
   };
@@ -203,12 +242,10 @@ function JoinScreen({ onJoin }) {
         <p style={{margin:"0 0 28px",color:"#9b9a97",fontSize:14}}>参加コードを入力してワークスペースに参加</p>
         <input value={name} onChange={e=>setName(e.target.value)} placeholder="あなたの名前"
           style={{width:"100%",boxSizing:"border-box",border:"1px solid #e0e0e0",borderRadius:6,padding:"10px 14px",fontSize:14,outline:"none",color:"#37352f",marginBottom:10}}/>
-        <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="パスワード"
-          style={{width:"100%",boxSizing:"border-box",border:"1px solid #e0e0e0",borderRadius:6,padding:"10px 14px",fontSize:14,outline:"none",color:"#37352f",marginBottom:10}}/>
         <input value={code} onChange={e=>setCode(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handle()} placeholder="例: x7k2-mq9p-wj4r-9z3q"
           style={{width:"100%",boxSizing:"border-box",border:"1px solid #e0e0e0",borderRadius:6,padding:"10px 14px",fontSize:14,outline:"none",color:"#37352f",marginBottom:4}}/>
         {err&&<p style={{color:"#e03e3e",fontSize:12,margin:"0 0 8px",textAlign:"left"}}>{err}</p>}
-        <p style={{fontSize:11,color:"#9b9a97",margin:"0 0 16px",textAlign:"left"}}>パスワードと参加コードは管理者から受け取ってください。</p>
+        <p style={{fontSize:11,color:"#9b9a97",margin:"0 0 16px",textAlign:"left"}}>参加コードは管理者から受け取ってください。</p>
         <button onClick={handle} style={{width:"100%",background:"#37352f",color:"#fff",border:"none",borderRadius:6,padding:"11px 0",fontSize:15,fontWeight:600,cursor:"pointer"}}>参加する</button>
       </div>
     </div>
@@ -216,6 +253,7 @@ function JoinScreen({ onJoin }) {
 }
 
 export default function App() {
+  const [authed,setAuthed]=useState(false);
   const [joined,setJoined]=useState(false);
   const [roomCode,setRoomCode]=useState("");
   const [username,setUsername]=useState("");
@@ -261,6 +299,7 @@ export default function App() {
 
   const curPage = pages.find(p=>p.id===activePage);
 
+  if(!authed) return <AuthScreen onAuth={()=>setAuthed(true)}/>;
   if(!joined) return <JoinScreen onJoin={handleJoin}/>;
 
   return (
