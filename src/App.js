@@ -386,8 +386,16 @@ export default function App() {
     isSaving.current=true;
     if(saveTimeout.current) clearTimeout(saveTimeout.current);
     saveTimeout.current=setTimeout(async ()=>{
-      await setDoc(doc(db,"workspaces",roomCode),serialize({pages:newPages,rooms:newRooms}));
-      setTimeout(()=>{ isSaving.current=false; },500);
+      try {
+        const payload = serialize({pages:newPages,rooms:newRooms});
+        console.log("💾 保存開始 json.length=", payload.json.length);
+        await setDoc(doc(db,"workspaces",roomCode), payload);
+        console.log("✅ 保存完了");
+      } catch(e) {
+        console.error("❌ 保存失敗:", e);
+      } finally {
+        setTimeout(()=>{ isSaving.current=false; },500);
+      }
     },800);
   };
 
