@@ -94,7 +94,10 @@ function TextBlock({ block, onChange, onKeyDown }) {
 
   useEffect(()=>{ setLocal(block.content); },[block.content]);
   useEffect(()=>{
-    if(ref.current){ ref.current.style.height="auto"; ref.current.style.height=ref.current.scrollHeight+"px"; }
+    if(ref.current){
+      ref.current.style.height="0px";
+      ref.current.style.height=ref.current.scrollHeight+"px";
+    }
   },[local]);
 
   const insertNewlineAfterLine = (lineIndex) => {
@@ -126,7 +129,7 @@ function TextBlock({ block, onChange, onKeyDown }) {
         onCompositionEnd={e=>{ composing.current=false; onChange({...block,content:e.target.value}); }}
         onKeyDown={onKeyDown}
         rows={1}
-        style={{width:"100%",border:"none",outline:"none",resize:"none",fontSize:16,color:"#37352f",lineHeight:1.5,fontFamily:"inherit",background:"transparent",padding:"2px 0",overflow:"hidden",minHeight:"28px",boxSizing:"border-box"}}/>
+        style={{width:"100%",border:"none",outline:"none",resize:"none",fontSize:16,color:"#37352f",lineHeight:1.5,fontFamily:"inherit",background:"transparent",padding:"2px 0",overflow:"hidden",minHeight:"24px",boxSizing:"border-box"}}/>
       {/* フォーカス中：各行の右に改行ボタンを表示するオーバーレイ */}
       {focused && (
         <div style={{position:"absolute",top:0,right:-28,display:"flex",flexDirection:"column"}}>
