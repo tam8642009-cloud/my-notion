@@ -101,7 +101,7 @@ function TextBlock({ block, onChange, onKeyDown }) {
         onCompositionStart={()=>composing.current=true}
         onCompositionEnd={e=>{ composing.current=false; onChange({...block,content:e.target.value}); }}
         onKeyDown={onKeyDown} rows={4}
-        style={{flex:1,border:"none",outline:"none",resize:"none",fontSize:16,color:"#37352f",lineHeight:1.6,fontFamily:"inherit",background:"transparent",padding:"2px 0",overflow:"hidden",minHeight:"96px"}}/>
+        style={{flex:1,border:"none",outline:"none",resize:"none",fontSize:16,color:"#37352f",lineHeight:1.5,fontFamily:"inherit",background:"transparent",padding:"2px 0",overflow:"hidden",minHeight:"28px"}}/>
     </div>
   );
 }
