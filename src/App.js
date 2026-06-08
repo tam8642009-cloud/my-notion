@@ -182,7 +182,7 @@ function PageEditor({ page, onUpdate }) {
       {blocks.map((b,i)=>(
         <div key={b.id} draggable
           onDragStart={()=>onDragStart(i)} onDragEnter={()=>onDragEnter(i)} onDragEnd={onDragEnd} onDragOver={e=>e.preventDefault()}
-          style={{position:"relative",paddingRight:24,paddingLeft:24,marginBottom:2,borderRadius:6}}
+          style={{position:"relative",paddingRight:24,paddingLeft:24,marginBottom:0,borderRadius:6}}
           onMouseOver={e=>{e.currentTarget.querySelector(".del-btn").style.opacity=1;e.currentTarget.querySelector(".drag-handle").style.opacity=1;}}
           onMouseOut={e=>{e.currentTarget.querySelector(".del-btn").style.opacity=0;e.currentTarget.querySelector(".drag-handle").style.opacity=0;}}>
           <span className="drag-handle" style={{position:"absolute",left:0,top:6,opacity:0,cursor:"grab",fontSize:14,color:"#c4c4c0",padding:"2px 4px",userSelect:"none",transition:"opacity 0.1s"}}>⠿</span>
