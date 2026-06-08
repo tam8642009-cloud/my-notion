@@ -89,41 +89,59 @@ function TableBlock({ block, onChange }) {
 function TextBlock({ block, onChange, onKeyDown }) {
   const ref = useRef();
   const [local, setLocal] = useState(block.content);
-  const composing = useRef(false);
   const [focused, setFocused] = useState(false);
+  const composing = useRef(false);
 
   useEffect(()=>{ setLocal(block.content); },[block.content]);
   useEffect(()=>{
     if(ref.current){ ref.current.style.height="auto"; ref.current.style.height=ref.current.scrollHeight+"px"; }
   },[local]);
 
-  const insertNewline = () => {
-    const el = ref.current;
-    if(!el) return;
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
-    const newVal = local.slice(0,start) + "\n" + local.slice(end);
+  const insertNewlineAfterLine = (lineIndex) => {
+    const lines = local.split("\n");
+    lines.splice(lineIndex+1, 0, "");
+    const newVal = lines.join("\n");
     setLocal(newVal);
     onChange({...block, content:newVal});
-    setTimeout(()=>{ el.selectionStart = el.selectionEnd = start+1; el.focus(); },0);
+    // カーソルを新しい行の先頭に移動
+    setTimeout(()=>{
+      if(ref.current){
+        const pos = lines.slice(0, lineIndex+1).join("\n").length + 1;
+        ref.current.focus();
+        ref.current.setSelectionRange(pos, pos);
+      }
+    }, 0);
   };
 
+  const lines = local.split("\n");
+
   return (
-    <div style={{margin:"2px 0"}}>
+    <div style={{margin:"2px 0", position:"relative"}}
+      onFocus={()=>setFocused(true)}
+      onBlur={()=>setTimeout(()=>setFocused(false),150)}>
+      {/* 実際の編集用textarea（隠さずそのまま表示） */}
       <textarea ref={ref} value={local}
         onChange={e=>{ setLocal(e.target.value); if(!composing.current) onChange({...block,content:e.target.value}); }}
         onCompositionStart={()=>composing.current=true}
         onCompositionEnd={e=>{ composing.current=false; onChange({...block,content:e.target.value}); }}
         onKeyDown={onKeyDown}
-        onFocus={()=>setFocused(true)}
-        onBlur={()=>setTimeout(()=>setFocused(false),150)}
         rows={1}
         style={{width:"100%",border:"none",outline:"none",resize:"none",fontSize:16,color:"#37352f",lineHeight:1.5,fontFamily:"inherit",background:"transparent",padding:"2px 0",overflow:"hidden",minHeight:"28px",boxSizing:"border-box"}}/>
+      {/* フォーカス中：各行の右に改行ボタンを表示するオーバーレイ */}
       {focused && (
-        <button onMouseDown={e=>e.preventDefault()} onClick={insertNewline}
-          style={{fontSize:11,color:"#9b9a97",background:"#f0f0ef",border:"none",borderRadius:4,padding:"2px 8px",cursor:"pointer",marginBottom:2}}>
-          ↵ 改行
-        </button>
+        <div style={{position:"absolute",top:0,right:-28,display:"flex",flexDirection:"column"}}>
+          {lines.map((line,i)=>(
+            <div key={i} style={{height:"24px",display:"flex",alignItems:"center"}}>
+              <button
+                onMouseDown={e=>e.preventDefault()}
+                onClick={()=>insertNewlineAfterLine(i)}
+                title="この行の後に改行"
+                style={{background:"none",border:"none",cursor:"pointer",color:"#b0b0b0",fontSize:14,padding:"0 2px",lineHeight:1}}>
+                ↵
+              </button>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
