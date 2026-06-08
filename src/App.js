@@ -88,36 +88,61 @@ function TableBlock({ block, onChange }) {
 
 function TextBlock({ block, onChange, onKeyDown }) {
   const ref = useRef();
-  const [local, setLocal] = useState(block.content);
   const composing = useRef(false);
+  const isUpdating = useRef(false);
 
-  useEffect(()=>{ setLocal(block.content); },[block.content]);
   useEffect(()=>{
-    if(ref.current){
-      ref.current.style.height="0px";
-      ref.current.style.height=ref.current.scrollHeight+"px";
+    if(ref.current && !isUpdating.current){
+      const lines = block.content.split("\n");
+      ref.current.innerHTML = lines.map(l=>
+        `<div>${l===""?"<br>":escHtml(l)}</div>`
+      ).join("");
     }
-  },[local]);
+  },[block.content]);
+
+  const escHtml = s => s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+  const getPlainText = () => {
+    if(!ref.current) return "";
+    return Array.from(ref.current.children)
+      .map(div=>{
+        if(div.querySelector("br")&&div.textContent==="") return "";
+        return div.textContent;
+      }).join("\n");
+  };
+
+  const handleInput = () => {
+    if(composing.current) return;
+    isUpdating.current = true;
+    onChange({...block, content: getPlainText()});
+    setTimeout(()=>{ isUpdating.current=false; },50);
+  };
+
+  const handleKeyDown = (e) => {
+    if(e.key==="Enter"&&!e.shiftKey){
+      e.preventDefault();
+      // 新しいブロックを追加
+      onKeyDown && onKeyDown(e);
+    }
+  };
 
   const insertNewline = () => {
-    const el = ref.current;
-    if(!el) return;
-    const start = el.selectionStart ?? local.length;
-    const newVal = local.slice(0,start) + "\n" + local.slice(start);
-    setLocal(newVal);
-    onChange({...block, content:newVal});
-    setTimeout(()=>{ el.focus(); el.setSelectionRange(start+1,start+1); },0);
+    if(!ref.current) return;
+    ref.current.focus();
+    document.execCommand("insertHTML", false, "<br><br>");
+    isUpdating.current = true;
+    onChange({...block, content: getPlainText()});
+    setTimeout(()=>{ isUpdating.current=false; },50);
   };
 
   return (
     <div style={{display:"flex",alignItems:"flex-start",gap:4,margin:"2px 0"}}>
-      <textarea ref={ref} value={local}
-        onChange={e=>{ setLocal(e.target.value); if(!composing.current) onChange({...block,content:e.target.value}); }}
+      <div ref={ref} contentEditable suppressContentEditableWarning
+        onInput={handleInput}
         onCompositionStart={()=>composing.current=true}
-        onCompositionEnd={e=>{ composing.current=false; onChange({...block,content:e.target.value}); }}
-        onKeyDown={onKeyDown}
-        rows={1}
-        style={{flex:1,border:"none",outline:"none",resize:"none",fontSize:16,color:"#37352f",lineHeight:1.5,fontFamily:"inherit",background:"transparent",padding:"2px 0",overflow:"hidden",minHeight:"24px",boxSizing:"border-box"}}/>
+        onCompositionEnd={()=>{ composing.current=false; handleInput(); }}
+        onKeyDown={handleKeyDown}
+        style={{flex:1,border:"none",outline:"none",fontSize:16,color:"#37352f",lineHeight:1.5,fontFamily:"inherit",background:"transparent",padding:"2px 0",wordBreak:"break-word",minHeight:"24px"}}/>
       <button onMouseDown={e=>e.preventDefault()} onClick={insertNewline}
         title="改行を挿入"
         style={{flexShrink:0,background:"none",border:"none",cursor:"pointer",color:"#c4c4c0",fontSize:16,padding:"2px 2px",lineHeight:1,marginTop:2}}>↵</button>
