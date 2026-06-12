@@ -1,8 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { db } from "./firebase";
-import {
-  collection, doc, setDoc, deleteDoc, onSnapshot, writeBatch, getDocs
-} from "firebase/firestore";
+import { collection, doc, setDoc, deleteDoc, onSnapshot } from "firebase/firestore";
 
 const EMOJI_LIST = ["📄","📝","📊","🗂️","💡","🔖","🎯","📌"];
 function genId() { return Math.random().toString(36).slice(2,9); }
@@ -17,6 +15,23 @@ function parseExcelPaste(text) {
   return { id:genId(), type:"table", headers, rows:dataRows };
 }
 
+const serializePage = (page) => ({
+  ...page,
+  blocks: page.blocks.map(b =>
+    b.type === "table"
+      ? {...b, rows: b.rows.map(r => ({cells: r}))}
+      : b
+  )
+});
+const deserializePage = (data) => ({
+  ...data,
+  blocks: (data.blocks||[]).map(b =>
+    b.type === "table"
+      ? {...b, rows: (b.rows||[]).map(r => Array.isArray(r) ? r : (r.cells||[]))}
+      : b
+  )
+});
+
 function TableBlock({ block, onChange }) {
   const rows = block.rows || [["",""],["",""]];
   const headers = block.headers || ["列1","列2"];
@@ -27,21 +42,13 @@ function TableBlock({ block, onChange }) {
   const updateH = (c,v) => { const nh=headers.map((h,i)=>i===c?v:h); onChange({...block,rows,headers:nh}); };
   const addRow = () => onChange({...block,rows:[...rows,headers.map(()=>"")],headers});
   const addCol = () => { const nh=[...headers,`列${headers.length+1}`]; onChange({...block,rows:rows.map(r=>[...r,""]),headers:nh}); };
-  const moveRow = (r, dir) => {
-    const nr = [...rows];
-    const target = r + dir;
-    if(target < 0 || target >= nr.length) return;
-    [nr[r], nr[target]] = [nr[target], nr[r]];
-    onChange({...block, rows:nr, headers}); setMenu(null);
-  };
-  const duplicateRow = r => {
-    const nr = [...rows]; nr.splice(r+1, 0, [...rows[r]]);
-    onChange({...block, rows:nr, headers}); setMenu(null);
-  };
-
   const deleteRow = r => { if(rows.length<=1) return; onChange({...block,rows:rows.filter((_,i)=>i!==r),headers}); setMenu(null); };
   const insertRow = (r,offset) => { const nr=[...rows]; nr.splice(r+offset,0,headers.map(()=>"")); onChange({...block,rows:nr,headers}); setMenu(null); };
+  const moveRow = (r,dir) => { const nr=[...rows]; const t=r+dir; if(t<0||t>=nr.length) return; [nr[r],nr[t]]=[nr[t],nr[r]]; onChange({...block,rows:nr,headers}); setMenu(null); };
+  const duplicateRow = r => { const nr=[...rows]; nr.splice(r+1,0,[...rows[r]]); onChange({...block,rows:nr,headers}); setMenu(null); };
+
   const handleRowContext = (e,r) => { e.preventDefault(); setMenu({rowIndex:r,x:e.clientX,y:e.clientY}); };
+  const handleTouchStart = (e,r) => {
     const touch = e.touches[0];
     longPressTimer.current = setTimeout(()=>setMenu({rowIndex:r,x:touch.clientX,y:touch.clientY}), 500);
   };
@@ -105,7 +112,6 @@ function TextBlock({ block, onChange, onKeyDown }) {
   const composing = useRef(false);
   const saveTimer = useRef(null);
 
-  // 外部更新（他ユーザー等）のみ反映、自分の編集中は無視
   useEffect(()=>{
     if(!composing.current && document.activeElement !== ref.current){
       setLocal(block.content);
@@ -119,8 +125,7 @@ function TextBlock({ block, onChange, onKeyDown }) {
     }
   };
 
-  // マウント時・内容変更時にリサイズ
-  useEffect(()=>{ resize(); });  // 依存配列なし＝毎レンダリング後に実行
+  useEffect(()=>{ resize(); });
 
   const handleChange = e => {
     const val = e.target.value;
@@ -270,30 +275,24 @@ function Chat({ roomCode, rooms, setRooms }) {
   const [newRoom,setNewRoom]=useState("");
   const endRef=useRef();
   const room=rooms.find(r=>r.id===activeRoom);
-
   useEffect(()=>endRef.current?.scrollIntoView({behavior:"smooth"}),[room?.messages?.length]);
 
   const saveRoom = async (updatedRoom) => {
-    const ref = doc(db,"workspaces",roomCode,"rooms",updatedRoom.id);
-    await setDoc(ref,{ name:updatedRoom.name, messages:updatedRoom.messages });
+    await setDoc(doc(db,"workspaces",roomCode,"rooms",updatedRoom.id),{name:updatedRoom.name,messages:updatedRoom.messages});
   };
-
   const send=()=>{
     if(!input.trim()) return;
     const msg={id:genId(),user:username,text:input.trim(),time:nowTime()};
     const updated={...room,messages:[...room.messages,msg]};
     setRooms(prev=>prev.map(r=>r.id===activeRoom?updated:r));
-    saveRoom(updated);
-    setInput("");
+    saveRoom(updated); setInput("");
   };
   const addRoom=async()=>{
     if(!newRoom.trim()) return;
     const r={id:genId(),name:newRoom.trim(),messages:[]};
     setRooms(prev=>[...prev,r]);
-    await saveRoom(r);
-    setActiveRoom(r.id); setNewRoom("");
+    await saveRoom(r); setActiveRoom(r.id); setNewRoom("");
   };
-
   return (
     <div style={{display:"flex",height:"100%"}}>
       <div style={{width:160,borderRight:"1px solid #e0e0e0",padding:"12px 0",background:"#f7f6f3",flexShrink:0}}>
@@ -400,7 +399,7 @@ export default function App() {
   const [roomCode,setRoomCode]=useState("");
   const [username,setUsername]=useState("");
   const [pages,setPages]=useState([]);
-  const [pageOrder,setPageOrder]=useState([]); // ページ順序だけ別管理
+  const [pageOrder,setPageOrder]=useState([]);
   const [rooms,setRooms]=useState([]);
   const [activePage,setActivePage]=useState(null);
   const [view,setView]=useState("page");
@@ -412,114 +411,73 @@ export default function App() {
   const pageTouchItem=useRef(null);
   const pageTouchTimer=useRef(null);
 
-  // ページ一覧とページ順序をリッスン
   useEffect(()=>{
     if(!joined) return;
-    const wsRef = doc(db,"workspaces",roomCode);
-
-    // ワークスペースメタ（ページ順序）
-    const unsubMeta = onSnapshot(wsRef, snap=>{
-      if(snap.exists() && snap.data().pageOrder){
-        setPageOrder(snap.data().pageOrder);
-      }
+    const wsRef=doc(db,"workspaces",roomCode);
+    const unsubMeta=onSnapshot(wsRef,snap=>{
+      if(snap.exists()&&snap.data().pageOrder) setPageOrder(snap.data().pageOrder);
     });
-
-    // ページサブコレクション
-    const unsubPages = onSnapshot(collection(db,"workspaces",roomCode,"pages"), snap=>{
-      const loaded = snap.docs.map(d=>deserializePage({id:d.id,...d.data()}));
+    const unsubPages=onSnapshot(collection(db,"workspaces",roomCode,"pages"),snap=>{
+      const loaded=snap.docs.map(d=>deserializePage({id:d.id,...d.data()}));
       setPages(loaded);
-      setActivePage(ap => ap || loaded[0]?.id || null);
+      setActivePage(ap=>ap||loaded[0]?.id||null);
     });
-
-    // チャットサブコレクション
-    const unsubRooms = onSnapshot(collection(db,"workspaces",roomCode,"rooms"), snap=>{
+    const unsubRooms=onSnapshot(collection(db,"workspaces",roomCode,"rooms"),snap=>{
       if(snap.empty){
-        // 初期チャットルーム作成
-        const r={id:"r1",name:"一般",messages:[]};
         setDoc(doc(db,"workspaces",roomCode,"rooms","r1"),{name:"一般",messages:[]});
-        setRooms([r]);
+        setRooms([{id:"r1",name:"一般",messages:[]}]);
       } else {
         setRooms(snap.docs.map(d=>({id:d.id,...d.data()})));
       }
     });
-
     return ()=>{ unsubMeta(); unsubPages(); unsubRooms(); };
   },[joined,roomCode]);
 
-  // ページ順序をFirestoreに保存
-  const savePageOrder = useCallback(async (order) => {
+  const savePageOrder=useCallback(async(order)=>{
     await setDoc(doc(db,"workspaces",roomCode),{pageOrder:order},{merge:true});
   },[roomCode]);
 
-  // ページ1件をFirestoreに保存（デバウンス）
-  // Firestoreは二次元配列不可 → rows を {cells:[...]} に変換
-  const serializePage = (page) => ({
-    ...page,
-    blocks: page.blocks.map(b =>
-      b.type === "table"
-        ? {...b, rows: b.rows.map(r => ({cells: r}))}
-        : b
-    )
-  });
-  const deserializePage = (data) => ({
-    ...data,
-    blocks: (data.blocks||[]).map(b =>
-      b.type === "table"
-        ? {...b, rows: (b.rows||[]).map(r => Array.isArray(r) ? r : (r.cells||[]))}
-        : b
-    )
-  });
-
-  const savePage = useCallback((page) => {
+  const savePage=useCallback((page)=>{
     if(saveTimers.current[page.id]) clearTimeout(saveTimers.current[page.id]);
-    saveTimers.current[page.id] = setTimeout(async ()=>{
-      const {id,...data} = serializePage(page);
-      await setDoc(doc(db,"workspaces",roomCode,"pages",id), data);
-    }, 800);
+    saveTimers.current[page.id]=setTimeout(async()=>{
+      const {id,...data}=serializePage(page);
+      await setDoc(doc(db,"workspaces",roomCode,"pages",id),data);
+    },800);
   },[roomCode]);
 
-  const updatePage = (p) => {
-    setPages(prev=>prev.map(pg=>pg.id===p.id?p:pg));
-    savePage(p);
-  };
+  const updatePage=p=>{ setPages(prev=>prev.map(pg=>pg.id===p.id?p:pg)); savePage(p); };
 
-  const addPage = async () => {
+  const addPage=async()=>{
     const p={id:genId(),emoji:"📄",title:"新しいページ",blocks:[{id:genId(),type:"text",content:""}]};
     const {id,...data}=p;
     await setDoc(doc(db,"workspaces",roomCode,"pages",id),data);
     const newOrder=[...pageOrder,id];
-    setPageOrder(newOrder);
-    await savePageOrder(newOrder);
-    setPages(prev=>[...prev,p]);
-    setActivePage(id); setView("page");
+    setPageOrder(newOrder); await savePageOrder(newOrder);
+    setPages(prev=>[...prev,p]); setActivePage(id); setView("page");
   };
 
-  const deletePage = async (id) => {
+  const deletePage=async(id)=>{
     await deleteDoc(doc(db,"workspaces",roomCode,"pages",id));
     const newOrder=pageOrder.filter(oid=>oid!==id);
-    setPageOrder(newOrder);
-    await savePageOrder(newOrder);
+    setPageOrder(newOrder); await savePageOrder(newOrder);
     setPages(prev=>prev.filter(p=>p.id!==id));
     if(activePage===id) setActivePage(newOrder[0]||null);
   };
 
-  const duplicatePage = async (id) => {
+  const duplicatePage=async(id)=>{
     const src=pages.find(p=>p.id===id); if(!src) return;
     const newId=genId();
     const np2={...src,id:newId,title:src.title+" のコピー",blocks:src.blocks.map(b=>({...b,id:genId()}))};
-    const {id:_,...data} = serializePage(np2);
-    await setDoc(doc(db,"workspaces",roomCode,"pages",newId),{...data});
+    const {id:_,...data}=serializePage(np2);
+    await setDoc(doc(db,"workspaces",roomCode,"pages",newId),data);
     const newOrder=[...pageOrder,newId];
-    setPageOrder(newOrder);
-    await savePageOrder(newOrder);
-    setPages(prev=>[...prev,np2]);
-    setActivePage(newId); setView("page");
+    setPageOrder(newOrder); await savePageOrder(newOrder);
+    setPages(prev=>[...prev,np2]); setActivePage(newId); setView("page");
   };
 
-  // ページ順序に従って並び替え
-  const orderedPages = pageOrder.length > 0
-    ? pageOrder.map(id=>pages.find(p=>p.id===id)).filter(Boolean)
-    : pages;
+  const orderedPages=pageOrder.length>0
+    ?pageOrder.map(id=>pages.find(p=>p.id===id)).filter(Boolean)
+    :pages;
 
   const handleJoin=(code,name)=>{ setRoomCode(code); setUsername(name); setJoined(true); };
   const curPage=pages.find(p=>p.id===activePage);
@@ -556,15 +514,15 @@ export default function App() {
                   const newOrd=[...pageOrder];
                   const fromId=orderedPages[pageDragItem.current]?.id;
                   const toId=orderedPages[pageDragOver.current]?.id;
-                  const fi=newOrd.indexOf(fromId); const ti=newOrd.indexOf(toId);
-                  if(fi>=0&&ti>=0){ newOrd.splice(fi,1); newOrd.splice(ti,0,fromId); }
+                  const fi=newOrd.indexOf(fromId),ti=newOrd.indexOf(toId);
+                  if(fi>=0&&ti>=0){newOrd.splice(fi,1);newOrd.splice(ti,0,fromId);}
                   pageDragItem.current=null; pageDragOver.current=null;
                   setPageOrder(newOrd); savePageOrder(newOrd);
                 }}
                 onDragOver={e=>e.preventDefault()}
                 onTouchStart={e=>{ pageTouchItem.current=i; pageTouchTimer.current=setTimeout(()=>{pageDragging.current=true;},300); }}
                 onTouchMove={e=>{ if(!pageDragging.current) return; const t=e.touches[0]; const el=document.elementFromPoint(t.clientX,t.clientY)?.closest("[data-pageidx]"); if(el) pageDragOver.current=parseInt(el.dataset.pageidx); }}
-                onTouchEnd={()=>{ clearTimeout(pageTouchTimer.current); if(pageDragging.current&&pageDragOver.current!=null&&pageTouchItem.current!=null){ const newOrd=[...pageOrder]; const fromId=orderedPages[pageTouchItem.current]?.id; const toId=orderedPages[pageDragOver.current]?.id; const fi=newOrd.indexOf(fromId); const ti=newOrd.indexOf(toId); if(fi>=0&&ti>=0){newOrd.splice(fi,1);newOrd.splice(ti,0,fromId);} setPageOrder(newOrd); savePageOrder(newOrd); } pageDragging.current=false; pageTouchItem.current=null; pageDragOver.current=null; }}
+                onTouchEnd={()=>{ clearTimeout(pageTouchTimer.current); if(pageDragging.current&&pageDragOver.current!=null&&pageTouchItem.current!=null){const newOrd=[...pageOrder];const fromId=orderedPages[pageTouchItem.current]?.id;const toId=orderedPages[pageDragOver.current]?.id;const fi=newOrd.indexOf(fromId),ti=newOrd.indexOf(toId);if(fi>=0&&ti>=0){newOrd.splice(fi,1);newOrd.splice(ti,0,fromId);}setPageOrder(newOrd);savePageOrder(newOrd);}pageDragging.current=false;pageTouchItem.current=null;pageDragOver.current=null;}}
                 data-pageidx={i}
                 style={{padding:"5px 12px",borderRadius:4,cursor:"grab",fontSize:14,color:activePage===p.id&&view==="page"?"#37352f":"#6b6b6b",background:activePage===p.id&&view==="page"?"#e9e9e8":"transparent",display:"flex",alignItems:"center",justifyContent:"space-between"}}
                 onClick={()=>{setActivePage(p.id);setView("page");}}>
