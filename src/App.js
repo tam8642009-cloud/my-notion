@@ -27,11 +27,21 @@ function TableBlock({ block, onChange }) {
   const updateH = (c,v) => { const nh=headers.map((h,i)=>i===c?v:h); onChange({...block,rows,headers:nh}); };
   const addRow = () => onChange({...block,rows:[...rows,headers.map(()=>"")],headers});
   const addCol = () => { const nh=[...headers,`列${headers.length+1}`]; onChange({...block,rows:rows.map(r=>[...r,""]),headers:nh}); };
+  const moveRow = (r, dir) => {
+    const nr = [...rows];
+    const target = r + dir;
+    if(target < 0 || target >= nr.length) return;
+    [nr[r], nr[target]] = [nr[target], nr[r]];
+    onChange({...block, rows:nr, headers}); setMenu(null);
+  };
+  const duplicateRow = r => {
+    const nr = [...rows]; nr.splice(r+1, 0, [...rows[r]]);
+    onChange({...block, rows:nr, headers}); setMenu(null);
+  };
+
   const deleteRow = r => { if(rows.length<=1) return; onChange({...block,rows:rows.filter((_,i)=>i!==r),headers}); setMenu(null); };
   const insertRow = (r,offset) => { const nr=[...rows]; nr.splice(r+offset,0,headers.map(()=>"")); onChange({...block,rows:nr,headers}); setMenu(null); };
-
   const handleRowContext = (e,r) => { e.preventDefault(); setMenu({rowIndex:r,x:e.clientX,y:e.clientY}); };
-  const handleTouchStart = (e,r) => {
     const touch = e.touches[0];
     longPressTimer.current = setTimeout(()=>setMenu({rowIndex:r,x:touch.clientX,y:touch.clientY}), 500);
   };
@@ -48,7 +58,10 @@ function TableBlock({ block, onChange }) {
     <div style={{overflowX:"auto",margin:"8px 0",position:"relative"}}>
       {menu&&(
         <div onClick={e=>e.stopPropagation()}
-          style={{position:"fixed",top:menu.y,left:menu.x,background:"#fff",border:"1px solid #e0e0e0",borderRadius:8,boxShadow:"0 4px 16px rgba(0,0,0,0.12)",zIndex:300,overflow:"hidden",minWidth:160}}>
+          style={{position:"fixed",top:menu.y,left:menu.x,background:"#fff",border:"1px solid #e0e0e0",borderRadius:8,boxShadow:"0 4px 16px rgba(0,0,0,0.12)",zIndex:300,overflow:"hidden",minWidth:180}}>
+          <div onClick={()=>moveRow(menu.rowIndex,-1)} style={{padding:"10px 16px",cursor:"pointer",fontSize:13,color:"#37352f",borderBottom:"1px solid #f0f0ef"}}>↑ 上に移動</div>
+          <div onClick={()=>moveRow(menu.rowIndex,1)}  style={{padding:"10px 16px",cursor:"pointer",fontSize:13,color:"#37352f",borderBottom:"1px solid #f0f0ef"}}>↓ 下に移動</div>
+          <div onClick={()=>duplicateRow(menu.rowIndex)} style={{padding:"10px 16px",cursor:"pointer",fontSize:13,color:"#37352f",borderBottom:"1px solid #f0f0ef"}}>⧉ この行を複製</div>
           <div onClick={()=>insertRow(menu.rowIndex,0)} style={{padding:"10px 16px",cursor:"pointer",fontSize:13,color:"#37352f",borderBottom:"1px solid #f0f0ef"}}>↑ 上に行を追加</div>
           <div onClick={()=>insertRow(menu.rowIndex,1)} style={{padding:"10px 16px",cursor:"pointer",fontSize:13,color:"#37352f",borderBottom:"1px solid #f0f0ef"}}>↓ 下に行を追加</div>
           <div onClick={()=>deleteRow(menu.rowIndex)} style={{padding:"10px 16px",cursor:"pointer",fontSize:13,color:"#e03e3e"}}>🗑 この行を削除</div>
