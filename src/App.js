@@ -136,7 +136,7 @@ function TextBlock({ block, onChange, onKeyDown }) {
         onCompositionEnd={e=>{ composing.current=false; const val=e.target.value; setLocal(val); onChange({...block,content:val}); resize(); }}
         onKeyDown={onKeyDown}
         rows={1}
-        style={{flex:1,border:"none",outline:"none",resize:"none",fontSize:16,color:"#37352f",lineHeight:1.5,fontFamily:"inherit",background:"transparent",padding:"2px 0",overflow:"hidden",minHeight:"24px",boxSizing:"border-box"}}/>
+        style={{flex:1,border:"none",outline:"none",resize:"none",fontSize:16,color:"#37352f",lineHeight:1.5,fontFamily:"inherit",background:"transparent",padding:0,overflow:"hidden",minHeight:"24px",boxSizing:"border-box"}}/>
       <button onMouseDown={e=>e.preventDefault()} onClick={insertNewline}
         title="改行を挿入"
         style={{flexShrink:0,background:"none",border:"none",cursor:"pointer",color:"#c4c4c0",fontSize:16,padding:"2px 2px",lineHeight:1,marginTop:2}}>↵</button>
@@ -220,7 +220,7 @@ function PageEditor({ page, onUpdate }) {
       {blocks.map((b,i)=>(
         <div key={b.id} draggable
           onDragStart={()=>onDragStart(i)} onDragEnter={()=>onDragEnter(i)} onDragEnd={onDragEnd} onDragOver={e=>e.preventDefault()}
-          style={{position:"relative",paddingRight:24,paddingLeft:24,marginBottom:0,borderRadius:6}}
+          style={{position:"relative",paddingRight:20,paddingLeft:20,marginBottom:0,borderRadius:6}}
           onMouseOver={e=>{e.currentTarget.querySelector(".del-btn").style.opacity=1;e.currentTarget.querySelector(".drag-handle").style.opacity=1;}}
           onMouseOut={e=>{e.currentTarget.querySelector(".del-btn").style.opacity=0;e.currentTarget.querySelector(".drag-handle").style.opacity=0;}}>
           <span className="drag-handle" style={{position:"absolute",left:0,top:6,opacity:0,cursor:"grab",fontSize:14,color:"#c4c4c0",padding:"2px 4px",userSelect:"none",transition:"opacity 0.1s"}}>⠿</span>
