@@ -106,7 +106,8 @@ function TextBlock({ block, onChange, onKeyDown }) {
     }
   };
 
-  useEffect(()=>{ resize(); },[local]);
+  // マウント時・内容変更時にリサイズ
+  useEffect(()=>{ resize(); });  // 依存配列なし＝毎レンダリング後に実行
 
   const handleChange = e => {
     const val = e.target.value;
