@@ -170,8 +170,12 @@ function PageEditor({ page, onUpdate }) {
   const [showEmoji,setShowEmoji] = useState(false);
   const [addMenu,setAddMenu] = useState(false);
   const [pasteMsg,setPasteMsg] = useState("");
-  const dragItem = useRef(null);
-  const dragOver = useRef(null);
+  const [dragIdx,setDragIdx] = useState(null);
+  const [overIdx,setOverIdx] = useState(null);
+  const blockRefs = useRef([]);
+  const touchDragging = useRef(false);
+  const touchStartY = useRef(0);
+  const touchDragIdx = useRef(null);
 
   useEffect(()=>{
     setTitle(page.title); setEmoji(page.emoji); setBlocks(page.blocks);
@@ -196,17 +200,52 @@ function PageEditor({ page, onUpdate }) {
     if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); addBlock("text"); }
     if(e.key==="Backspace"&&blocks.find(b=>b.id===id)?.content===""){ e.preventDefault(); deleteBlock(id); }
   };
-  const onDragStart = i => { dragItem.current=i; };
-  const onDragEnter = i => { dragOver.current=i; };
+
+  // PC: ドラッグ＆ドロップ
+  const onDragStart = i => setDragIdx(i);
+  const onDragEnter = i => setOverIdx(i);
   const onDragEnd = () => {
+    if(dragIdx===null||overIdx===null||dragIdx===overIdx){setDragIdx(null);setOverIdx(null);return;}
     setBlocks(prev=>{
       const b2=[...prev];
-      const dragged=b2.splice(dragItem.current,1)[0];
-      b2.splice(dragOver.current,0,dragged);
-      dragItem.current=null; dragOver.current=null;
+      const dragged=b2.splice(dragIdx,1)[0];
+      b2.splice(overIdx,0,dragged);
       save(title,emoji,b2); return b2;
     });
+    setDragIdx(null); setOverIdx(null);
   };
+
+  // スマホ: タッチドラッグ
+  const handleTouchStartHandle = (e, i) => {
+    touchStartY.current = e.touches[0].clientY;
+    touchDragIdx.current = i;
+    touchDragging.current = false;
+    // 長押し判定不要、⠿ タッチで即開始
+  };
+  const handleTouchMoveHandle = (e) => {
+    e.preventDefault();
+    touchDragging.current = true;
+    const y = e.touches[0].clientY;
+    // どのブロックの上にいるか判定
+    blockRefs.current.forEach((ref,i)=>{
+      if(!ref) return;
+      const rect = ref.getBoundingClientRect();
+      if(y >= rect.top && y <= rect.bottom) setOverIdx(i);
+    });
+  };
+  const handleTouchEndHandle = () => {
+    if(touchDragging.current && touchDragIdx.current!==null && overIdx!==null && touchDragIdx.current!==overIdx){
+      setBlocks(prev=>{
+        const b2=[...prev];
+        const dragged=b2.splice(touchDragIdx.current,1)[0];
+        b2.splice(overIdx,0,dragged);
+        save(title,emoji,b2); return b2;
+      });
+    }
+    touchDragging.current=false; touchDragIdx.current=null;
+    setDragIdx(null); setOverIdx(null);
+  };
+
   const handlePaste = useCallback((e) => {
     const text = e.clipboardData.getData("text/plain");
     if (!text.includes("\t")) return;
@@ -237,12 +276,24 @@ function PageEditor({ page, onUpdate }) {
       <input value={title} onChange={e=>{setTitle(e.target.value);save(e.target.value,emoji,blocks);}} placeholder="タイトルなし"
         style={{display:"block",width:"100%",border:"none",outline:"none",fontSize:36,fontWeight:700,color:"#37352f",fontFamily:"inherit",background:"transparent",marginBottom:16,padding:0}}/>
       {blocks.map((b,i)=>(
-        <div key={b.id} draggable
+        <div key={b.id}
+          ref={el=>blockRefs.current[i]=el}
+          draggable
           onDragStart={()=>onDragStart(i)} onDragEnter={()=>onDragEnter(i)} onDragEnd={onDragEnd} onDragOver={e=>e.preventDefault()}
-          style={{position:"relative",paddingRight:20,paddingLeft:20,marginBottom:0,borderRadius:6}}
-          onMouseOver={e=>{e.currentTarget.querySelector(".del-btn").style.opacity=1;e.currentTarget.querySelector(".drag-handle").style.opacity=1;}}
-          onMouseOut={e=>{e.currentTarget.querySelector(".del-btn").style.opacity=0;e.currentTarget.querySelector(".drag-handle").style.opacity=0;}}>
-          <span className="drag-handle" style={{position:"absolute",left:0,top:6,opacity:0,cursor:"grab",fontSize:14,color:"#c4c4c0",padding:"2px 4px",userSelect:"none",transition:"opacity 0.1s"}}>⠿</span>
+          style={{position:"relative",paddingRight:20,paddingLeft:28,marginBottom:0,borderRadius:6,
+            background: overIdx===i && dragIdx!==i ? "#f0f0ef" : "transparent",
+            opacity: dragIdx===i ? 0.4 : 1,
+            transition:"background 0.1s"}}
+          onMouseOver={e=>{const h=e.currentTarget.querySelector(".drag-handle");const d=e.currentTarget.querySelector(".del-btn");if(h)h.style.opacity=1;if(d)d.style.opacity=1;}}
+          onMouseOut={e=>{const h=e.currentTarget.querySelector(".drag-handle");const d=e.currentTarget.querySelector(".del-btn");if(h)h.style.opacity=0;if(d)d.style.opacity=0;}}>
+          {/* ドラッグハンドル：PC=hover、スマホ=常時表示 */}
+          <span className="drag-handle"
+            onTouchStart={e=>handleTouchStartHandle(e,i)}
+            onTouchMove={handleTouchMoveHandle}
+            onTouchEnd={handleTouchEndHandle}
+            style={{position:"absolute",left:2,top:4,opacity:0,cursor:"grab",fontSize:16,color:"#c4c4c0",padding:"4px",userSelect:"none",touchAction:"none",
+              // スマホでは常時表示
+              WebkitUserSelect:"none"}}>⠿</span>
           {b.type==="text"&&<TextBlock block={b} onChange={nb=>updateBlock(b.id,nb)} onKeyDown={e=>handleKey(e,b.id)}/>}
           {b.type==="table"&&<TableBlock block={b} onChange={nb=>updateBlock(b.id,nb)}/>}
           <span className="del-btn" onClick={()=>deleteBlock(b.id)} style={{position:"absolute",top:4,right:0,opacity:0,cursor:"pointer",fontSize:13,color:"#9b9a97",padding:"2px 4px",borderRadius:4,transition:"opacity 0.1s"}}>✕</span>
