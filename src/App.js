@@ -170,8 +170,6 @@ const [blocks,setBlocks] = useState(page.blocks);
 const [showEmoji,setShowEmoji] = useState(false);
 const [addMenu,setAddMenu] = useState(false);
 const [pasteMsg,setPasteMsg] = useState("");
-  const dragItem = useRef(null);
-  const dragOver = useRef(null);
   const [dragIdx,setDragIdx] = useState(null);
   const [overIdx,setOverIdx] = useState(null);
   const blockRefs = useRef([]);
@@ -202,23 +200,18 @@ const handleKey = (e,id) => {
 if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); addBlock("text"); }
 if(e.key==="Backspace"&&blocks.find(b=>b.id===id)?.content===""){ e.preventDefault(); deleteBlock(id); }
 };
-  const onDragStart = i => { dragItem.current=i; };
-  const onDragEnter = i => { dragOver.current=i; };
 
   // PC: ドラッグ＆ドロップ
   const onDragStart = i => setDragIdx(i);
   const onDragEnter = i => setOverIdx(i);
-const onDragEnd = () => {
+  const onDragEnd = () => {
     if(dragIdx===null||overIdx===null||dragIdx===overIdx){setDragIdx(null);setOverIdx(null);return;}
-setBlocks(prev=>{
-const b2=[...prev];
-      const dragged=b2.splice(dragItem.current,1)[0];
-      b2.splice(dragOver.current,0,dragged);
-      dragItem.current=null; dragOver.current=null;
+    setBlocks(prev=>{
+      const b2=[...prev];
       const dragged=b2.splice(dragIdx,1)[0];
       b2.splice(overIdx,0,dragged);
-save(title,emoji,b2); return b2;
-});
+      save(title,emoji,b2); return b2;
+    });
     setDragIdx(null); setOverIdx(null);
   };
 
@@ -283,15 +276,10 @@ return (
 <input value={title} onChange={e=>{setTitle(e.target.value);save(e.target.value,emoji,blocks);}} placeholder="タイトルなし"
 style={{display:"block",width:"100%",border:"none",outline:"none",fontSize:36,fontWeight:700,color:"#37352f",fontFamily:"inherit",background:"transparent",marginBottom:16,padding:0}}/>
 {blocks.map((b,i)=>(
-        <div key={b.id} draggable
         <div key={b.id}
           ref={el=>blockRefs.current[i]=el}
           draggable
-onDragStart={()=>onDragStart(i)} onDragEnter={()=>onDragEnter(i)} onDragEnd={onDragEnd} onDragOver={e=>e.preventDefault()}
-          style={{position:"relative",paddingRight:20,paddingLeft:20,marginBottom:0,borderRadius:6}}
-          onMouseOver={e=>{e.currentTarget.querySelector(".del-btn").style.opacity=1;e.currentTarget.querySelector(".drag-handle").style.opacity=1;}}
-          onMouseOut={e=>{e.currentTarget.querySelector(".del-btn").style.opacity=0;e.currentTarget.querySelector(".drag-handle").style.opacity=0;}}>
-          <span className="drag-handle" style={{position:"absolute",left:0,top:6,opacity:0,cursor:"grab",fontSize:14,color:"#c4c4c0",padding:"2px 4px",userSelect:"none",transition:"opacity 0.1s"}}>⠿</span>
+          onDragStart={()=>onDragStart(i)} onDragEnter={()=>onDragEnter(i)} onDragEnd={onDragEnd} onDragOver={e=>e.preventDefault()}
           style={{position:"relative",paddingRight:20,paddingLeft:28,marginBottom:0,borderRadius:6,
             background: overIdx===i && dragIdx!==i ? "#f0f0ef" : "transparent",
             opacity: dragIdx===i ? 0.4 : 1,
@@ -303,9 +291,7 @@ onDragStart={()=>onDragStart(i)} onDragEnter={()=>onDragEnter(i)} onDragEnd={onD
             onTouchStart={e=>handleTouchStartHandle(e,i)}
             onTouchMove={handleTouchMoveHandle}
             onTouchEnd={handleTouchEndHandle}
-            style={{position:"absolute",left:2,top:4,opacity:0,cursor:"grab",fontSize:16,color:"#c4c4c0",padding:"4px",userSelect:"none",touchAction:"none",
-              // スマホでは常時表示
-              WebkitUserSelect:"none"}}>⠿</span>
+            style={{position:"absolute",left:2,top:4,opacity:0,cursor:"grab",fontSize:16,color:"#c4c4c0",padding:"4px",userSelect:"none",touchAction:"none",WebkitUserSelect:"none"}}>⠿</span>
 {b.type==="text"&&<TextBlock block={b} onChange={nb=>updateBlock(b.id,nb)} onKeyDown={e=>handleKey(e,b.id)}/>}
 {b.type==="table"&&<TableBlock block={b} onChange={nb=>updateBlock(b.id,nb)}/>}
 <span className="del-btn" onClick={()=>deleteBlock(b.id)} style={{position:"absolute",top:4,right:0,opacity:0,cursor:"pointer",fontSize:13,color:"#9b9a97",padding:"2px 4px",borderRadius:4,transition:"opacity 0.1s"}}>✕</span>
@@ -573,19 +559,28 @@ return (
 onDragStart={e=>{e.dataTransfer.effectAllowed="move";pageDragItem.current=i;}}
 onDragEnter={()=>pageDragOver.current=i}
 onDragEnd={()=>{
-if(pageDragItem.current===null||pageDragOver.current===null) return;
-const newOrd=[...pageOrder];
-const fromId=orderedPages[pageDragItem.current]?.id;
-const toId=orderedPages[pageDragOver.current]?.id;
-const fi=newOrd.indexOf(fromId),ti=newOrd.indexOf(toId);
-if(fi>=0&&ti>=0){newOrd.splice(fi,1);newOrd.splice(ti,0,fromId);}
+const fi=pageDragItem.current, ti=pageDragOver.current;
 pageDragItem.current=null; pageDragOver.current=null;
+if(fi===null||ti===null||fi===ti) return;
+const newOrd=orderedPages.map(pg=>pg.id);
+const [moved]=newOrd.splice(fi,1);
+newOrd.splice(ti,0,moved);
 setPageOrder(newOrd); savePageOrder(newOrd);
 }}
 onDragOver={e=>e.preventDefault()}
 onTouchStart={e=>{ pageTouchItem.current=i; pageTouchTimer.current=setTimeout(()=>{pageDragging.current=true;},300); }}
 onTouchMove={e=>{ if(!pageDragging.current) return; const t=e.touches[0]; const el=document.elementFromPoint(t.clientX,t.clientY)?.closest("[data-pageidx]"); if(el) pageDragOver.current=parseInt(el.dataset.pageidx); }}
-onTouchEnd={()=>{ clearTimeout(pageTouchTimer.current); if(pageDragging.current&&pageDragOver.current!=null&&pageTouchItem.current!=null){const newOrd=[...pageOrder];const fromId=orderedPages[pageTouchItem.current]?.id;const toId=orderedPages[pageDragOver.current]?.id;const fi=newOrd.indexOf(fromId),ti=newOrd.indexOf(toId);if(fi>=0&&ti>=0){newOrd.splice(fi,1);newOrd.splice(ti,0,fromId);}setPageOrder(newOrd);savePageOrder(newOrd);}pageDragging.current=false;pageTouchItem.current=null;pageDragOver.current=null;}}
+onTouchEnd={()=>{
+clearTimeout(pageTouchTimer.current);
+const fi=pageTouchItem.current, ti=pageDragOver.current;
+if(pageDragging.current&&fi!=null&&ti!=null&&fi!==ti){
+const newOrd=orderedPages.map(pg=>pg.id);
+const [moved]=newOrd.splice(fi,1);
+newOrd.splice(ti,0,moved);
+setPageOrder(newOrd); savePageOrder(newOrd);
+}
+pageDragging.current=false; pageTouchItem.current=null; pageDragOver.current=null;
+}}
 data-pageidx={i}
 style={{padding:"5px 12px",borderRadius:4,cursor:"grab",fontSize:14,color:activePage===p.id&&view==="page"?"#37352f":"#6b6b6b",background:activePage===p.id&&view==="page"?"#e9e9e8":"transparent",display:"flex",alignItems:"center",justifyContent:"space-between"}}
 onClick={()=>{setActivePage(p.id);setView("page");}}>
